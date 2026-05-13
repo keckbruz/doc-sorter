@@ -1,4 +1,7 @@
 from __future__ import annotations
+import subprocess
+import sys
+import time
 from pathlib import Path
 import typer
 
@@ -7,6 +10,54 @@ app = typer.Typer(
     help="Local document classifier and organizer. Privacy-preserving, dry-run by default.",
     no_args_is_help=True,
 )
+
+
+def _ensure_ollama(host: str, console: object) -> None:
+    """Start Ollama if not reachable. Tries macOS app first, then `ollama serve`."""
+    import httpx
+    from rich.console import Console
+    con = console  # type: ignore[assignment]
+
+    def reachable() -> bool:
+        try:
+            return httpx.get(f"{host}/api/tags", timeout=3).status_code == 200
+        except Exception:
+            return False
+
+    if reachable():
+        return
+
+    con.print("[yellow]Ollama is not running — starting it...[/yellow]")
+
+    # Try macOS app first
+    started = False
+    if sys.platform == "darwin":
+        result = subprocess.run(["open", "-a", "Ollama"], capture_output=True)
+        started = result.returncode == 0
+
+    # Fall back to `ollama serve` as background process
+    if not started:
+        try:
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            started = True
+        except FileNotFoundError:
+            con.print("[red]Could not find Ollama. Install it from https://ollama.com[/red]")
+            raise typer.Exit(1)
+
+    # Poll until ready (up to 20 seconds)
+    with con.status("Waiting for Ollama to start..."):  # type: ignore[attr-defined]
+        for _ in range(40):
+            time.sleep(0.5)
+            if reachable():
+                con.print("[green]Ollama is ready.[/green]")
+                return
+
+    con.print("[red]Ollama did not start in time. Try running `ollama serve` manually.[/red]")
+    raise typer.Exit(1)
 
 
 @app.command()
@@ -52,6 +103,8 @@ def scan(
 
     console = Console(stderr=True)
     start_time = time.time()
+
+    _ensure_ollama(ollama_host, console)
 
     # Resolve taxonomy path
     taxonomy_path = taxonomy or (Path(__file__).parent.parent / "taxonomy.yaml")
