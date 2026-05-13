@@ -63,6 +63,7 @@ class ReviewTableApp:
         self.rows = list(rows)
         self.threshold = threshold
         self.apply_callback = apply_callback or (lambda r: None)
+        self.applied: bool = False
         self.cursor: int = 0
         self.edit_mode: bool = False
         self.edit_field: str = "name"  # "name" | "category"
@@ -203,6 +204,7 @@ class ReviewTableApp:
         to_apply = [r for r in self.rows if _is_confident(r, self.threshold)]
         if to_apply:
             self.apply_callback(to_apply)
+            self.applied = True
             applied = {r.original_path for r in to_apply}
             self.rows = [r for r in self.rows if r.original_path not in applied]
             self.cursor = max(0, min(self.cursor, self._total - 1))
@@ -243,6 +245,7 @@ class ReviewTableApp:
                     to_apply = [r for r in self.rows if _is_applicable(r)]
                     event.app.exit()
                     self.apply_callback(to_apply)
+                    self.applied = True
                 else:
                     event.app.exit()
             else:
@@ -324,3 +327,4 @@ class ReviewTableApp:
             layout=layout, key_bindings=kb, style=style, full_screen=True
         )
         app.run()
+        return self.applied

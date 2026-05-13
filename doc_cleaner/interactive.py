@@ -168,9 +168,9 @@ def scan_folder(console: Console) -> None:
         return
 
     apply_cb = _make_apply_callback(plan_path, undo_path)
-    ReviewTableApp(rows, threshold=threshold, apply_callback=apply_cb).run()
-
-    console.print(f"\n[green]Done.[/green] Undo manifest: {undo_path}")
+    applied = ReviewTableApp(rows, threshold=threshold, apply_callback=apply_cb).run()
+    if applied:
+        console.print(f"\n[green]Done.[/green] Undo manifest: {undo_path}")
 
 
 def apply_existing_plan(console: Console) -> None:
