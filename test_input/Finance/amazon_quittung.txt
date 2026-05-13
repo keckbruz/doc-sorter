@@ -1,0 +1,11 @@
+Amazon.de
+Bestellnummer: 302-1234567-8901234
+Datum: 15.02.2024
+
+Artikel: USB-C Kabel 2m
+Menge: 2
+Einzelpreis: 9,99 EUR
+Gesamtbetrag: 19,98 EUR
+
+Zahlungsmethode: VISA ***1234
+Lieferadresse: Max Mustermann, Musterstr. 1, 80333 München
