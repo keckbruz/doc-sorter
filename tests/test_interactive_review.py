@@ -77,7 +77,12 @@ def test_apply_callback_marks_approved_and_calls_apply_plan(tmp_path, mocker):
     row = ReviewRow(src, "a.pdf", dst, "a.pdf", "Finance/Invoices", 95, False)
     callback([row])
 
-    mock_apply.assert_called_once()
+    mock_apply.assert_called_once_with(
+        plan, undo,
+        yes=True,
+        apply_all_above_threshold=False,
+        confidence_threshold=0,
+    )
     # Verify approved=true was written to CSV
     with open(plan) as f:
         rows = list(csv.DictReader(f))

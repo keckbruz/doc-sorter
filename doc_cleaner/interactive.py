@@ -63,13 +63,18 @@ def _read_plan_as_review_rows(plan_csv: Path) -> list:
             cat = row["category"]
             if row.get("subcategory"):
                 cat = f"{cat}/{row['subcategory']}"
+            try:
+                confidence = int(row["confidence"] or 0)
+            except ValueError:
+                confidence = 0
+            orig_path = Path(row["original_path"])
             rows.append(ReviewRow(
-                original_path=Path(row["original_path"]),
-                original_name=Path(row["original_path"]).name,
+                original_path=orig_path,
+                original_name=orig_path.name,
                 target_path=Path(row["target_path"]),
                 new_name=row["suggested_filename"],
                 category=cat,
-                confidence=int(row["confidence"] or 0),
+                confidence=confidence,
                 needs_review=row["needs_review"].lower() == "true",
             ))
     return rows
@@ -77,6 +82,7 @@ def _read_plan_as_review_rows(plan_csv: Path) -> list:
 
 def _make_apply_callback(plan_csv: Path, undo_path: Path):
     import csv as _csv
+    import os as _os
 
     def apply(rows: list) -> None:
         from doc_cleaner.applier import apply_plan  # inside closure for test patchability
@@ -97,10 +103,12 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
                         row_data["suggested_filename"] = review_row.new_name
                 rows_data.append(row_data)
 
-        with open(plan_csv, "w", newline="", encoding="utf-8") as f:
+        tmp = plan_csv.with_suffix(".tmp")
+        with open(tmp, "w", newline="", encoding="utf-8") as f:
             writer = _csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows_data)
+        _os.replace(tmp, plan_csv)
 
         apply_plan(
             plan_csv, undo_path,
