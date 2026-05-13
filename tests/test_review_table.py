@@ -112,3 +112,58 @@ def test_action_labels_excludes_excluded():
     labels = app._action_labels()
     assert "1 files" in labels[0]
     assert "1 files" in labels[1]
+
+
+def _rendered_text(app):
+    return "".join(t for _, t in app._render())
+
+
+def test_render_shows_original_name():
+    app = _make_app([_row(original_name="allianz.pdf")])
+    assert "allianz.pdf" in _rendered_text(app)
+
+
+def test_render_shows_proposed_name():
+    app = _make_app([_row(new_name="2024-01-01 - Allianz.pdf")])
+    assert "2024-01-01 - Allianz.pdf" in _rendered_text(app)
+
+
+def test_render_shows_category():
+    app = _make_app([_row(category="Finance/Invoices")])
+    assert "Finance/Invoices" in _rendered_text(app)
+
+
+def test_render_shows_confidence():
+    app = _make_app([_row(confidence=95)])
+    assert "95" in _rendered_text(app)
+
+
+def test_render_shows_review_status():
+    app = _make_app([_row(confidence=60, needs_review=True)])
+    assert "⚠ review" in _rendered_text(app)
+
+
+def test_render_shows_skip_status():
+    app = _make_app([_row(excluded=True)])
+    assert "skip" in _rendered_text(app)
+
+
+def test_render_shows_edited_status():
+    app = _make_app([_row(user_edited=True, confidence=100)])
+    assert "✓ edited" in _rendered_text(app)
+
+
+def test_render_shows_action_labels():
+    text = _rendered_text(_make_app())
+    assert "Apply confident" in text
+    assert "Apply all" in text
+    assert "Cancel" in text
+
+
+def test_render_cursor_marker_on_current_row():
+    app = _make_app([_row(), _row()])
+    app.cursor = 1
+    text = _rendered_text(app)
+    lines = text.splitlines()
+    data_lines = [l for l in lines if l.startswith("▶") or l.startswith("  ") and "✓" in l]
+    assert any(l.startswith("▶") for l in data_lines)

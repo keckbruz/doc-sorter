@@ -89,7 +89,77 @@ class ReviewTableApp:
         ]
 
     def _render(self) -> list[tuple[str, str]]:
-        return [("", "Review table (stub)\n")]
+        sep = "  " + "─" * (_COL_ORIG + _COL_NAME + _COL_CAT + 16) + "\n"
+        lines: list[tuple[str, str]] = []
+
+        header = (
+            f"  {'ORIGINAL':<{_COL_ORIG}} {'PROPOSED NAME':<{_COL_NAME}}"
+            f" {'CATEGORY':<{_COL_CAT}} CONF  STATUS\n"
+        )
+        lines.append(("class:header", header))
+        lines.append(("class:sep", sep))
+
+        for i, row in enumerate(self.rows):
+            at_cursor = self.cursor == i
+            editing = at_cursor and self.edit_mode
+            prefix = "▶ " if at_cursor else "  "
+
+            orig = _truncate(row.original_name, _COL_ORIG)
+            conf = str(row.confidence)
+            status = _status_str(row)
+
+            if editing and self.edit_field == "name":
+                name_text = _truncate(self.edit_buffer + "█", _COL_NAME)
+                cat_text = _truncate(row.category, _COL_CAT)
+                name_style, cat_style = "class:field-active", "class:field-inactive"
+            elif editing and self.edit_field == "category":
+                name_text = _truncate(row.new_name, _COL_NAME)
+                cat_text = _truncate(self.edit_buffer + "█", _COL_CAT)
+                name_style, cat_style = "class:field-inactive", "class:field-active"
+            else:
+                name_text = _truncate(row.new_name, _COL_NAME)
+                cat_text = _truncate(row.category, _COL_CAT)
+                name_style = cat_style = ""
+
+            if row.excluded:
+                base = "class:row-skip"
+            elif row.user_edited:
+                base = "class:row-edited"
+            elif row.needs_review:
+                base = "class:row-review"
+            else:
+                base = "class:row-ok"
+            if at_cursor and not editing:
+                base = "class:row-cursor"
+
+            if editing:
+                lines.append((base, f"{prefix}{orig:<{_COL_ORIG}} "))
+                lines.append((name_style, f"{name_text:<{_COL_NAME}}"))
+                lines.append((base, " "))
+                lines.append((cat_style, f"{cat_text:<{_COL_CAT}}"))
+                lines.append((base, f" {conf:>4}  {status}\n"))
+            else:
+                lines.append((base, (
+                    f"{prefix}{orig:<{_COL_ORIG}} {name_text:<{_COL_NAME}}"
+                    f" {cat_text:<{_COL_CAT}} {conf:>4}  {status}\n"
+                )))
+
+        lines.append(("class:sep", sep))
+
+        for i, label in enumerate(self._action_labels()):
+            idx = len(self.rows) + i
+            at_cursor = self.cursor == idx
+            prefix = "▶ " if at_cursor else "  "
+            style = "class:action-cursor" if at_cursor else "class:action"
+            lines.append((style, f"{prefix}{label}\n"))
+
+        if self.edit_mode:
+            hint = "\n  ←→ switch field   ↑↓ next row   enter confirm   esc discard\n"
+        else:
+            hint = "\n  ↑↓ navigate   enter edit   space preview   x exclude\n"
+        lines.append(("class:hint", hint))
+
+        return lines
 
     def run(self) -> None:
         pass
