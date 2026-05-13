@@ -202,4 +202,112 @@ class ReviewTableApp:
             event.app.exit()  # type: ignore[attr-defined]
 
     def run(self) -> None:
-        pass
+        import subprocess
+        from prompt_toolkit import Application
+        from prompt_toolkit.filters import Condition
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.layout import Layout
+        from prompt_toolkit.layout.containers import Window
+        from prompt_toolkit.layout.controls import FormattedTextControl
+        from prompt_toolkit.styles import Style
+
+        kb = KeyBindings()
+        in_edit = Condition(lambda: self.edit_mode)
+        not_edit = Condition(lambda: not self.edit_mode)
+
+        @kb.add("up", filter=not_edit)
+        def _up(event):
+            self.cursor = max(0, self.cursor - 1)
+
+        @kb.add("down", filter=not_edit)
+        def _down(event):
+            self.cursor = min(self._total - 1, self.cursor + 1)
+
+        @kb.add("enter", filter=not_edit)
+        def _enter(event):
+            if self._on_action:
+                idx = self._action_index
+                if idx == 0:
+                    self._do_apply_confident(event)
+                elif idx == 1:
+                    to_apply = [r for r in self.rows if _is_applicable(r)]
+                    self.apply_callback(to_apply)
+                    event.app.exit()
+                else:
+                    event.app.exit()
+            else:
+                self._start_edit()
+
+        @kb.add("space", filter=not_edit)
+        def _preview(event):
+            if not self._on_action:
+                subprocess.Popen(["open", str(self.rows[self.cursor].original_path)])
+
+        @kb.add("x", filter=not_edit)
+        def _exclude(event):
+            if not self._on_action:
+                r = self.rows[self.cursor]
+                r.excluded = not r.excluded
+
+        @kb.add("left", filter=in_edit)
+        def _field_left(event):
+            self._switch_field(-1)
+
+        @kb.add("right", filter=in_edit)
+        def _field_right(event):
+            self._switch_field(1)
+
+        @kb.add("up", filter=in_edit)
+        def _edit_up(event):
+            self._confirm_edit()
+            self.cursor = max(0, self.cursor - 1)
+            if not self._on_action:
+                self._start_edit()
+
+        @kb.add("down", filter=in_edit)
+        def _edit_down(event):
+            self._confirm_edit()
+            next_cur = min(len(self.rows) - 1, self.cursor + 1)
+            self.cursor = next_cur
+            if not self._on_action:
+                self._start_edit()
+
+        @kb.add("enter", filter=in_edit)
+        def _edit_confirm(event):
+            self._confirm_edit()
+
+        @kb.add("escape", filter=in_edit)
+        def _edit_discard(event):
+            self.edit_mode = False
+            self.edit_buffer = ""
+
+        @kb.add("backspace", filter=in_edit)
+        def _backspace(event):
+            self.edit_buffer = self.edit_buffer[:-1]
+
+        @kb.add("<any>", filter=in_edit)
+        def _char(event):
+            data = event.data
+            if data and len(data) == 1 and ord(data) >= 32:
+                self.edit_buffer += data
+
+        style = Style.from_dict({
+            "header": "bold",
+            "sep": "ansibrightblack",
+            "row-ok": "",
+            "row-review": "ansiyellow",
+            "row-skip": "ansibrightblack",
+            "row-edited": "ansigreen",
+            "row-cursor": "reverse",
+            "field-active": "bg:ansiblue bold",
+            "field-inactive": "ansibrightblack",
+            "action": "",
+            "action-cursor": "bold reverse",
+            "hint": "ansibrightblack italic",
+        })
+
+        layout = Layout(Window(content=FormattedTextControl(self._render)))
+        app = Application(
+            layout=layout, key_bindings=kb, style=style, full_screen=True
+        )
+        app.run()
