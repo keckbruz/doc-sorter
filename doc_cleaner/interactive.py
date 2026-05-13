@@ -121,8 +121,8 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
 
 
 def scan_folder(console: Console) -> None:
-    from doc_cleaner.applier import apply_plan
     from doc_cleaner.cli import scan
+    from doc_cleaner.review_table import ReviewTableApp
 
     input_dir = Path(typer.prompt("Folder to scan", default=str(Path.cwd()))).expanduser()
     while not input_dir.is_dir():
@@ -134,9 +134,9 @@ def scan_folder(console: Console) -> None:
     threshold = typer.prompt("Confidence threshold", default=90, type=int)
 
     plan_path, jsonl_path, undo_path = default_plan_paths()
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
 
     console.print()
-    console.print("[bold]Scanning[/bold]")
     scan(
         input=input_dir,
         output_root=output_root,
@@ -162,33 +162,15 @@ def scan_folder(console: Console) -> None:
         quiet=False,
     )
 
-    console.print("[bold]Plan ready[/bold]")
-    console.print(f"Review plan: {plan_path}")
-    console.print(f"Undo file if applied: {undo_path}")
-    console.print()
-
-    action = select(
-        console,
-        "Next",
-        [
-            ("done", "Done for now. I will review the CSV manually."),
-            ("confident", f"Apply rows with confidence >= {threshold}."),
-            ("approved", "Apply only rows marked approved=true in the CSV."),
-        ],
-    )
-    if action == "done":
-        console.print("Done. No files were moved.")
+    rows = _read_plan_as_review_rows(plan_path)
+    if not rows:
+        console.print("[yellow]No files to review.[/yellow]")
         return
 
-    apply_all_above_threshold = action == "confident"
-    result = apply_plan(
-        plan_path,
-        undo_path,
-        yes=False,
-        apply_all_above_threshold=apply_all_above_threshold,
-        confidence_threshold=threshold,
-    )
-    print_apply_result(console, result, undo_path)
+    apply_cb = _make_apply_callback(plan_path, undo_path)
+    ReviewTableApp(rows, threshold=threshold, apply_callback=apply_cb).run()
+
+    console.print(f"\n[green]Done.[/green] Undo manifest: {undo_path}")
 
 
 def apply_existing_plan(console: Console) -> None:
