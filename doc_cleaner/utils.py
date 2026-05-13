@@ -33,7 +33,7 @@ def sanitize_filename(
         parts.append(clean_type)
 
     stem = " - ".join(parts)
-    stem = stem[:MAX_STEM_LEN]
+    stem = stem[:200 - len(extension)]
     return stem + extension
 
 

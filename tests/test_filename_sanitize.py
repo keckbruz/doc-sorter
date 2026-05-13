@@ -89,3 +89,15 @@ def test_safe_target_path_no_subcategory(tmp_path):
 def test_safe_target_path_blocks_traversal(tmp_path):
     with pytest.raises(ValueError, match="Path traversal"):
         safe_target_path(tmp_path, "../evil", None, "bad.pdf")
+
+
+def test_max_length_with_long_extension():
+    long_sender = "A" * 200
+    result = sanitize_filename(
+        date="2024-01-01",
+        sender=long_sender,
+        document_type="Type",
+        original_stem="x",
+        extension=".docx",
+    )
+    assert len(result) <= 200
