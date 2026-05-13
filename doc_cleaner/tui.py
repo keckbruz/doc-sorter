@@ -213,6 +213,7 @@ class ScanScreen(Screen):
                         extension=meta.extension,
                     )
                     target = compute_target(self.output_root.resolve(), cat, sub, safe_name, existing_targets)
+                    existing_targets.add(target)
                     status = "review" if classification.needs_review else "planned"
                     if classification.needs_review:
                         counts["review"] += 1
@@ -232,6 +233,7 @@ class ScanScreen(Screen):
                         needs_review=True,
                     )
                     target = compute_target(self.output_root.resolve(), REVIEW_CATEGORY, None, safe_name, existing_targets)
+                    existing_targets.add(target)
 
                 rows.append(PlanRow(
                     approved=False,
