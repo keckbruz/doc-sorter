@@ -16,6 +16,7 @@ dependencies = [
     "pillow>=10",
     "python-magic>=0.4",
     "pyyaml>=6",
+    "textual>=0.50",
 ]
 
 [project.optional-dependencies]
