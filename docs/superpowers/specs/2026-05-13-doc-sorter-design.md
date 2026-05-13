@@ -210,7 +210,7 @@ Model never produces a path used directly. All path construction happens in code
 | Guarantee | Mechanism |
 |---|---|
 | No files moved in scan | `scan` has no move code |
-| No accidental apply | `apply` requires explicit `--apply` flag |
+| No accidental apply | `apply` is a separate subcommand with interactive confirmation (skip with `--yes`) |
 | No overwrite | target existence checked before every move |
 | No path escape | `resolve().is_relative_to()` enforced in planner |
 | No data loss | original stays until move confirmed; undo manifest always written |
@@ -272,13 +272,13 @@ All unit tests use `pytest` + `tmp_path`. No real documents. No Ollama required.
 ## CLI Commands & Key Flags
 
 ```
-scan   --input --output-root --model --ollama-host --plan --jsonl
-       --dry-run --confidence-threshold (default 90) --max-files --max-depth
-       --include-hidden --follow-symlinks (default false) --ocr/--no-ocr
-       --ocr-language (default deu+eng) --workers --max-text-chars
-       --cache-dir --taxonomy --verbose --quiet --limit
+scan   --input --output-root --model --ollama-host --allow-remote-ollama
+       --plan --jsonl --dry-run --confidence-threshold (default 90)
+       --max-files --max-depth --include-hidden --follow-symlinks (default false)
+       --ocr/--no-ocr --ocr-language (default deu+eng) --workers
+       --max-text-chars --cache-dir --taxonomy --verbose --quiet --limit
 
-apply  --plan --undo --yes --apply-all-above-threshold --allow-remote-ollama
+apply  --plan --undo --yes --apply-all-above-threshold
 
 undo   --undo-manifest
 
