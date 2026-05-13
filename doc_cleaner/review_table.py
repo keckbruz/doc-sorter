@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -66,6 +67,8 @@ class ReviewTableApp:
         self.edit_mode: bool = False
         self.edit_field: str = "name"  # "name" | "category"
         self.edit_buffer: str = ""
+        self._edit_orig_name: str = ""
+        self._edit_orig_category: str = ""
 
     @property
     def _total(self) -> int:
@@ -166,6 +169,8 @@ class ReviewTableApp:
         self.edit_mode = True
         self.edit_field = "name"
         self.edit_buffer = row.new_name
+        self._edit_orig_name = row.new_name
+        self._edit_orig_category = row.category
 
     def _confirm_edit(self) -> None:
         row = self.rows[self.cursor]
@@ -173,7 +178,10 @@ class ReviewTableApp:
             row.new_name = self.edit_buffer
             row.target_path = row.target_path.parent / self.edit_buffer
         else:
+            old_depth = len(row.category.split("/"))
+            base = row.target_path.parents[old_depth]
             row.category = self.edit_buffer
+            row.target_path = base / row.category / row.new_name
         row.user_edited = True
         row.confidence = 100
         row.needs_review = False
@@ -199,10 +207,12 @@ class ReviewTableApp:
             self.rows = [r for r in self.rows if r.original_path not in applied]
             self.cursor = max(0, min(self.cursor, self._total - 1))
         if not self.rows:
-            event.app.exit()  # type: ignore[attr-defined]
+            try:
+                event.app.exit()  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
     def run(self) -> None:
-        import subprocess
         from prompt_toolkit import Application
         from prompt_toolkit.filters import Condition
         from prompt_toolkit.key_binding import KeyBindings
@@ -231,8 +241,8 @@ class ReviewTableApp:
                     self._do_apply_confident(event)
                 elif idx == 1:
                     to_apply = [r for r in self.rows if _is_applicable(r)]
-                    self.apply_callback(to_apply)
                     event.app.exit()
+                    self.apply_callback(to_apply)
                 else:
                     event.app.exit()
             else:
@@ -278,6 +288,9 @@ class ReviewTableApp:
 
         @kb.add("escape", filter=in_edit)
         def _edit_discard(event):
+            row = self.rows[self.cursor]
+            row.new_name = self._edit_orig_name
+            row.category = self._edit_orig_category
             self.edit_mode = False
             self.edit_buffer = ""
 

@@ -293,3 +293,39 @@ def test_apply_confident_stays_open_when_rows_remain():
 
     app._do_apply_confident(FakeEvent())
     assert not exited   # still open — review rows remain
+
+
+def test_escape_after_field_switch_discards_all_edits():
+    """_start_edit snapshots originals; after _switch_field commits partial edits,
+    restoring from _edit_orig_* fully reverts both fields."""
+    app = _make_app([_row(new_name="original.pdf", category="Finance/Invoices")])
+    app._start_edit()                        # snapshots _edit_orig_name and _edit_orig_category
+    assert app._edit_orig_name == "original.pdf"
+    assert app._edit_orig_category == "Finance/Invoices"
+    app.edit_buffer = "changed.pdf"
+    app._switch_field(1)                     # commits "changed.pdf" into row.new_name
+    assert app.rows[0].new_name == "changed.pdf"  # confirm it was written
+    # Simulate escape discard: restore from snapshots
+    row = app.rows[0]
+    row.new_name = app._edit_orig_name
+    row.category = app._edit_orig_category
+    app.edit_mode = False
+    app.edit_buffer = ""
+    assert row.new_name == "original.pdf"       # restored
+    assert row.category == "Finance/Invoices"   # unchanged
+    assert not app.edit_mode
+
+
+def test_confirm_edit_category_updates_target_path():
+    row = _row(
+        new_name="invoice.pdf",
+        category="Finance/Invoices",
+        target_path=Path("/out/Finance/Invoices/invoice.pdf"),
+    )
+    app = _make_app([row])
+    app._start_edit()
+    app._switch_field(1)           # switch to category field
+    app.edit_buffer = "Finance/Banking"
+    app._confirm_edit()
+    assert row.category == "Finance/Banking"
+    assert row.target_path == Path("/out/Finance/Banking/invoice.pdf")
