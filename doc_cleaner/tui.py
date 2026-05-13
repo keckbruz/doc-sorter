@@ -273,16 +273,117 @@ class ScanScreen(Screen):
 
 
 class ReviewScreen(Screen):
+    BINDINGS = [
+        ("space", "toggle_approved", "Toggle"),
+        ("enter", "toggle_approved", "Toggle"),
+        ("a", "approve_all", "Approve all"),
+        ("n", "clear_all", "Clear all"),
+    ]
+
+    CSS = """
+    DataTable { height: 1fr; }
+    #action-bar { height: 3; padding: 0 1; }
+    #result { width: 1fr; padding: 0 2; color: $success; }
+    """
+
     def __init__(self, rows: list, input_dir: Path, output_root: Path) -> None:
         super().__init__()
         self._rows = rows
+        self._approved: set[str] = set()
         self.input_dir = input_dir
         self.output_root = output_root
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
-        yield Label("Review screen — coming in Task 5")
+        yield DataTable(id="review-table", cursor_type="row")
+        with Horizontal(id="action-bar"):
+            yield Button("Apply", id="apply", variant="primary")
+            yield Button("Export CSV", id="export", variant="default")
+            yield Static("", id="result")
         yield Footer()
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.add_column("✓", key="approved", width=3)
+        table.add_column("Filename", key="filename", width=30)
+        table.add_column("Category", key="category", width=14)
+        table.add_column("Suggested Name", key="suggested", width=30)
+        table.add_column("Conf", key="confidence", width=5)
+        table.add_column("Status", key="status", width=10)
+
+        for i, row in enumerate(self._rows):
+            filename = Path(row.original_path).name
+            conf = f"{row.confidence}%"
+            table.add_row("", filename, row.category, row.suggested_filename,
+                          conf, row.status, key=str(i))
+
+    def action_toggle_approved(self) -> None:
+        table = self.query_one(DataTable)
+        if table.row_count == 0:
+            return
+        key = str(table.cursor_row)
+        if key in self._approved:
+            self._approved.discard(key)
+            table.update_cell(key, "approved", "")
+        else:
+            self._approved.add(key)
+            table.update_cell(key, "approved", "✓")
+
+    def action_approve_all(self) -> None:
+        table = self.query_one(DataTable)
+        for i, row in enumerate(self._rows):
+            if row.status == "planned":
+                key = str(i)
+                self._approved.add(key)
+                table.update_cell(key, "approved", "✓")
+
+    def action_clear_all(self) -> None:
+        table = self.query_one(DataTable)
+        for key in list(self._approved):
+            table.update_cell(key, "approved", "")
+        self._approved.clear()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "export":
+            self._write_plan()
+            self.query_one("#result", Static).update("Plan exported.")
+        elif event.button.id == "apply":
+            self._apply()
+
+    def _write_plan(self) -> Path:
+        from doc_cleaner.planner import PlanWriter
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        plan_path = Path(f"plans/plan-{ts}.csv")
+        jsonl_path = Path(f"plans/plan-{ts}.jsonl")
+        with PlanWriter(plan_path, jsonl_path) as writer:
+            for i, row in enumerate(self._rows):
+                approved_row = row.model_copy(update={"approved": str(i) in self._approved})
+                writer.write(approved_row)
+        return plan_path
+
+    @work(thread=True)
+    def _apply(self) -> None:
+        from doc_cleaner.applier import apply_plan
+        from doc_cleaner.planner import PlanWriter
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        plan_path = Path(f"plans/plan-{ts}.csv")
+        undo_path = Path(f"plans/undo-{ts}.json")
+        jsonl_path = Path(f"plans/plan-{ts}.jsonl")
+
+        with PlanWriter(plan_path, jsonl_path) as writer:
+            for i, row in enumerate(self._rows):
+                approved_row = row.model_copy(update={"approved": str(i) in self._approved})
+                writer.write(approved_row)
+
+        result = apply_plan(plan_path, undo_path, yes=True)
+
+        summary = (
+            f"Done — Moved: {result.moved}  Skipped: {result.skipped}"
+            + (f"  Errors: {len(result.errors)}" if result.errors else "")
+            + f"  |  Undo: {undo_path}"
+        )
+        self.app.call_from_thread(self.query_one("#result", Static).update, summary)
+        self.app.call_from_thread(self.query_one("#apply", Button).remove)
 
 
 class DocCleanerApp(App):
