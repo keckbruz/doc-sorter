@@ -368,3 +368,10 @@ def doctor() -> None:
         table.add_row("Tesseract", "[yellow]OPTIONAL[/yellow]", f"Not found: {e}")
 
     console.print(table)
+
+
+@app.command()
+def ui() -> None:
+    """Launch the interactive TUI."""
+    from doc_cleaner.tui import run
+    run()
