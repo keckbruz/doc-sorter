@@ -1,0 +1,10 @@
+.worktrees/
+__pycache__/
+*.pyc
+*.pyo
+.doc-cleaner-cache/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
