@@ -22,5 +22,8 @@ dependencies = [
 ocr = ["pytesseract"]
 dev = ["pytest>=8", "fpdf2>=2.7", "pytest-mock>=3"]
 
+[project.scripts]
+doc-cleaner = "doc_cleaner.cli:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

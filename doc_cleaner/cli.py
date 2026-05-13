@@ -1,6 +1,5 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional
 import typer
 
 app = typer.Typer(
@@ -17,21 +16,21 @@ def scan(
     model: str = typer.Option("qwen3.5:9b", "--model"),
     ollama_host: str = typer.Option("http://127.0.0.1:11434", "--ollama-host"),
     allow_remote_ollama: bool = typer.Option(False, "--allow-remote-ollama"),
-    plan: Optional[Path] = typer.Option(None, "--plan"),
-    jsonl: Optional[Path] = typer.Option(None, "--jsonl"),
+    plan: Path | None = typer.Option(None, "--plan"),
+    jsonl: Path | None = typer.Option(None, "--jsonl"),
     dry_run: bool = typer.Option(True, "--dry-run/--no-dry-run"),
-    confidence_threshold: int = typer.Option(90, "--confidence-threshold"),
-    max_files: Optional[int] = typer.Option(None, "--max-files"),
-    max_depth: Optional[int] = typer.Option(None, "--max-depth"),
+    confidence_threshold: int = typer.Option(90, "--confidence-threshold", min=0, max=100),
+    max_files: int | None = typer.Option(None, "--max-files"),
+    max_depth: int | None = typer.Option(None, "--max-depth"),
     include_hidden: bool = typer.Option(False, "--include-hidden"),
     follow_symlinks: bool = typer.Option(False, "--follow-symlinks"),
     ocr: bool = typer.Option(False, "--ocr/--no-ocr"),
     ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
     workers: int = typer.Option(1, "--workers"),
     max_text_chars: int = typer.Option(4000, "--max-text-chars"),
-    cache_dir: Optional[Path] = typer.Option(None, "--cache-dir"),
-    taxonomy: Optional[Path] = typer.Option(None, "--taxonomy"),
-    limit: Optional[int] = typer.Option(None, "--limit"),
+    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
+    taxonomy: Path | None = typer.Option(None, "--taxonomy"),
+    limit: int | None = typer.Option(None, "--limit"),
     verbose: bool = typer.Option(False, "--verbose"),
     quiet: bool = typer.Option(False, "--quiet"),
 ) -> None:
@@ -46,7 +45,7 @@ def apply(
     undo: Path = typer.Option(..., "--undo", help="Path for undo manifest JSON"),
     yes: bool = typer.Option(False, "--yes", "-y"),
     apply_all_above_threshold: bool = typer.Option(False, "--apply-all-above-threshold"),
-    confidence_threshold: int = typer.Option(90, "--confidence-threshold"),
+    confidence_threshold: int = typer.Option(90, "--confidence-threshold", min=0, max=100),
 ) -> None:
     """Apply an approved move plan."""
     typer.echo("apply: not yet implemented")
