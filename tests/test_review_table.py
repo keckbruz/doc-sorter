@@ -222,3 +222,74 @@ def test_switch_field_saves_buffer():
     app.edit_buffer = "edited.pdf"
     app._switch_field(1)               # save "edited.pdf" into row.new_name, switch to category
     assert app.rows[0].new_name == "edited.pdf"
+
+
+def test_apply_confident_calls_callback():
+    called_with = []
+    rows = [
+        _row(confidence=95),
+        _row(original_path=Path("/b.pdf"), original_name="b.pdf",
+             target_path=Path("/out/b.pdf"), confidence=60, needs_review=True),
+    ]
+    app = ReviewTableApp(rows, threshold=90, apply_callback=called_with.extend)
+
+    class FakeEvent:
+        class app:
+            @staticmethod
+            def exit(): pass
+
+    app._do_apply_confident(FakeEvent())
+    assert len(called_with) == 1
+    assert called_with[0].original_name == "a.pdf"
+
+
+def test_apply_confident_removes_applied_rows():
+    rows = [
+        _row(confidence=95),
+        _row(original_path=Path("/b.pdf"), original_name="b.pdf",
+             target_path=Path("/out/b.pdf"), confidence=60, needs_review=True),
+    ]
+    app = ReviewTableApp(rows, threshold=90, apply_callback=lambda r: None)
+
+    class FakeEvent:
+        class app:
+            @staticmethod
+            def exit(): pass
+
+    app._do_apply_confident(FakeEvent())
+    assert len(app.rows) == 1
+    assert app.rows[0].original_name == "b.pdf"
+
+
+def test_apply_confident_exits_when_no_rows_remain():
+    exited = []
+    rows = [_row(confidence=95)]
+    app = ReviewTableApp(rows, threshold=90, apply_callback=lambda r: None)
+
+    class FakeEvent:
+        class app:
+            @staticmethod
+            def exit():
+                exited.append(True)
+
+    app._do_apply_confident(FakeEvent())
+    assert exited
+
+
+def test_apply_confident_stays_open_when_rows_remain():
+    exited = []
+    rows = [
+        _row(confidence=95),
+        _row(original_path=Path("/b.pdf"), original_name="b.pdf",
+             target_path=Path("/out/b.pdf"), confidence=60, needs_review=True),
+    ]
+    app = ReviewTableApp(rows, threshold=90, apply_callback=lambda r: None)
+
+    class FakeEvent:
+        class app:
+            @staticmethod
+            def exit():
+                exited.append(True)
+
+    app._do_apply_confident(FakeEvent())
+    assert not exited   # still open — review rows remain

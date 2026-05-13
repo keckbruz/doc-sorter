@@ -191,5 +191,15 @@ class ReviewTableApp:
         self.edit_field = fields[(fields.index(self.edit_field) + direction) % len(fields)]
         self.edit_buffer = row.new_name if self.edit_field == "name" else row.category
 
+    def _do_apply_confident(self, event: object) -> None:
+        to_apply = [r for r in self.rows if _is_confident(r, self.threshold)]
+        if to_apply:
+            self.apply_callback(to_apply)
+            applied = {r.original_path for r in to_apply}
+            self.rows = [r for r in self.rows if r.original_path not in applied]
+            self.cursor = max(0, min(self.cursor, self._total - 1))
+        if not self.rows:
+            event.app.exit()  # type: ignore[attr-defined]
+
     def run(self) -> None:
         pass
