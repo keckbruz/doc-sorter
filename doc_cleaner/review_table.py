@@ -161,5 +161,35 @@ class ReviewTableApp:
 
         return lines
 
+    def _start_edit(self) -> None:
+        row = self.rows[self.cursor]
+        self.edit_mode = True
+        self.edit_field = "name"
+        self.edit_buffer = row.new_name
+
+    def _confirm_edit(self) -> None:
+        row = self.rows[self.cursor]
+        if self.edit_field == "name":
+            row.new_name = self.edit_buffer
+            row.target_path = row.target_path.parent / self.edit_buffer
+        else:
+            row.category = self.edit_buffer
+        row.user_edited = True
+        row.confidence = 100
+        row.needs_review = False
+        self.edit_mode = False
+        self.edit_buffer = ""
+
+    def _switch_field(self, direction: int) -> None:
+        row = self.rows[self.cursor]
+        # Save current buffer before switching
+        if self.edit_field == "name":
+            row.new_name = self.edit_buffer
+        else:
+            row.category = self.edit_buffer
+        fields = ["name", "category"]
+        self.edit_field = fields[(fields.index(self.edit_field) + direction) % len(fields)]
+        self.edit_buffer = row.new_name if self.edit_field == "name" else row.category
+
     def run(self) -> None:
         pass

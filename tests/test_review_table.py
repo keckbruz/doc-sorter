@@ -167,3 +167,58 @@ def test_render_cursor_marker_on_current_row():
     lines = text.splitlines()
     data_lines = [l for l in lines if l.startswith("▶") or l.startswith("  ") and "✓" in l]
     assert any(l.startswith("▶") for l in data_lines)
+
+
+def test_start_edit_sets_state():
+    app = _make_app([_row(new_name="old.pdf")])
+    app._start_edit()
+    assert app.edit_mode
+    assert app.edit_field == "name"
+    assert app.edit_buffer == "old.pdf"
+
+
+def test_confirm_edit_name_updates_row():
+    app = _make_app([_row(new_name="old.pdf", target_path=Path("/out/Finance/Invoices/old.pdf"))])
+    app._start_edit()
+    app.edit_buffer = "new.pdf"
+    app._confirm_edit()
+    assert app.rows[0].new_name == "new.pdf"
+    assert app.rows[0].target_path.name == "new.pdf"
+    assert app.rows[0].user_edited
+    assert app.rows[0].confidence == 100
+    assert not app.rows[0].needs_review
+    assert not app.edit_mode
+
+
+def test_confirm_edit_category_updates_row():
+    app = _make_app([_row(category="Finance/Invoices")])
+    app._start_edit()
+    app._switch_field(1)   # move to category field
+    app.edit_buffer = "Legal/Contracts"
+    app._confirm_edit()
+    assert app.rows[0].category == "Legal/Contracts"
+    assert app.rows[0].user_edited
+
+
+def test_switch_field_right():
+    app = _make_app([_row(new_name="n.pdf", category="Finance/Invoices")])
+    app._start_edit()                  # edit_field == "name", buffer == "n.pdf"
+    app._switch_field(1)               # switch to category
+    assert app.edit_field == "category"
+    assert app.edit_buffer == "Finance/Invoices"
+
+
+def test_switch_field_wraps():
+    app = _make_app([_row()])
+    app._start_edit()
+    app._switch_field(1)   # name → category
+    app._switch_field(1)   # category → name (wraps)
+    assert app.edit_field == "name"
+
+
+def test_switch_field_saves_buffer():
+    app = _make_app([_row(new_name="n.pdf", category="Finance/Invoices")])
+    app._start_edit()
+    app.edit_buffer = "edited.pdf"
+    app._switch_field(1)               # save "edited.pdf" into row.new_name, switch to category
+    assert app.rows[0].new_name == "edited.pdf"
