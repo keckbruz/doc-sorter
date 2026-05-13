@@ -1,0 +1,53 @@
+Finance:
+  - Banking
+  - Taxes
+  - Insurance
+  - Investments
+  - Invoices
+  - Receipts
+Legal:
+  - Contracts
+  - Government
+  - Court
+  - Other
+Work:
+  - Employment
+  - Projects
+  - Applications
+  - Other
+Education:
+  - University
+  - Certificates
+  - Courses
+  - Other
+Health:
+  - Bills
+  - Reports
+  - Insurance
+  - Other
+Household:
+  - Rent
+  - Utilities
+  - Internet
+  - Manuals
+  - Other
+Vehicles:
+  - Insurance
+  - Maintenance
+  - Registration
+  - Other
+Personal:
+  - Letters
+  - Travel
+  - Identity
+  - Other
+Media:
+  - Photos
+  - Screenshots
+  - Videos
+Software:
+  - Licenses
+  - Manuals
+Archive: []
+Review: []
+Duplicates: []
