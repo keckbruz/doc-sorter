@@ -41,18 +41,23 @@ def normalize_category(
     return category, subcategory
 
 
-def read_output_taxonomy(output_root: Path) -> Taxonomy:
-    """Walk up to 2 levels of output_root dirs to build a taxonomy overlay."""
+def read_output_taxonomy(output_root: Path, max_depth: int = 2) -> Taxonomy:
+    """Walk output_root dirs up to max_depth levels to build a taxonomy overlay.
+
+    max_depth=2 means category + subcategory. Deeper folders are ignored.
+    """
     result: Taxonomy = {}
-    if not output_root.is_dir():
+    if not output_root.is_dir() or max_depth < 1:
         return result
     for cat_dir in sorted(output_root.iterdir()):
         if not cat_dir.is_dir() or cat_dir.name.startswith("."):
             continue
-        subs = [
-            d.name for d in sorted(cat_dir.iterdir())
-            if d.is_dir() and not d.name.startswith(".")
-        ]
+        subs: list[str] = []
+        if max_depth >= 2:
+            subs = [
+                d.name for d in sorted(cat_dir.iterdir())
+                if d.is_dir() and not d.name.startswith(".")
+            ]
         result[cat_dir.name] = subs
     return result
 

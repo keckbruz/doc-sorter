@@ -89,10 +89,16 @@ class OllamaClient:
 
         return result
 
-    def suggest_taxonomy(self, files: list[tuple[str, str]]) -> dict[str, list[str]]:
-        """Ask the model to suggest a folder taxonomy based on filenames + text peeks.
+    def suggest_taxonomy(
+        self,
+        files: list[tuple[str, str]],
+        existing: dict[str, list[str]] | None = None,
+    ) -> dict[str, list[str]]:
+        """Ask the model to suggest taxonomy additions based on filenames + text peeks.
 
         Each entry in files is (filename, peek_text). peek_text may be empty.
+        If existing is provided, the model is asked to suggest ONLY additions that
+        genuinely don't fit the existing structure.
         """
         lines = []
         for filename, peek in files[:200]:
@@ -102,16 +108,35 @@ class OllamaClient:
             else:
                 lines.append(f"- {filename}")
         files_text = "\n".join(lines)
-        prompt = (
-            "You are organizing personal documents into a folder structure.\n"
-            "Based on the filenames and content snippets below, suggest a 2-level folder taxonomy in German.\n\n"
-            f"FILES:\n{files_text}\n\n"
-            "Return ONLY a valid JSON object. Keys are top-level category names in German. "
-            "Values are arrays of subcategory names in German (may be empty []).\n"
-            "Use 5-10 broad categories. Do not create a category for just one file.\n"
-            "Do not include Review or Archiv — those are added automatically.\n\n"
-            'Example: {"Finanzen": ["Rechnungen", "Steuern"], "Wohnen": ["Miete"]}'
-        )
+
+        if existing:
+            existing_text = "\n".join(
+                f"- {cat}" + (f": {', '.join(subs)}" if subs else "")
+                for cat, subs in existing.items()
+                if cat not in ("Review", "Archiv", "Duplikate")
+            )
+            prompt = (
+                "You are organizing personal documents into a folder structure.\n\n"
+                f"EXISTING FOLDER STRUCTURE:\n{existing_text}\n\n"
+                f"NEW DOCUMENTS:\n{files_text}\n\n"
+                "Suggest ONLY new categories or subcategories that these documents genuinely need "
+                "and that do not already fit the existing structure. "
+                "Return {} if everything fits. Do not repeat existing entries.\n"
+                "Return ONLY a valid JSON object with German category names as keys "
+                "and arrays of German subcategory names as values.\n"
+                'Example: {"Technik": ["Gerätehandbücher"]}'
+            )
+        else:
+            prompt = (
+                "You are organizing personal documents into a folder structure.\n"
+                "Based on the filenames and content snippets below, suggest a 2-level folder taxonomy in German.\n\n"
+                f"FILES:\n{files_text}\n\n"
+                "Return ONLY a valid JSON object. Keys are top-level category names in German. "
+                "Values are arrays of subcategory names in German (may be empty []).\n"
+                "Use 5-10 broad categories. Do not create a category for just one file.\n"
+                "Do not include Review or Archiv — those are added automatically.\n\n"
+                'Example: {"Finanzen": ["Rechnungen", "Steuern"], "Wohnen": ["Miete"]}'
+            )
         raw = self.generate(prompt)
         text = raw.strip()
         fence_match = _JSON_FENCE.search(text)

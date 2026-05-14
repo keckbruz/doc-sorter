@@ -224,7 +224,12 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
     return apply
 
 
-def _suggest_taxonomy(input_dir: Path, model: str, console: Console) -> dict[str, list[str]]:
+def _suggest_taxonomy(
+    input_dir: Path,
+    model: str,
+    console: Console,
+    existing: dict[str, list[str]] | None = None,
+) -> dict[str, list[str]]:
     from doc_cleaner.classifier.ollama import OllamaClient
     from doc_cleaner.extractors import extract_text
     from doc_cleaner.scanner import scan_files
@@ -233,7 +238,7 @@ def _suggest_taxonomy(input_dir: Path, model: str, console: Console) -> dict[str
     if not all_meta:
         return {}
 
-    console.print(f"[dim]Peeking at {len(all_meta)} files to suggest taxonomy...[/dim]")
+    console.print(f"[dim]Peeking at {len(all_meta)} files to suggest taxonomy additions...[/dim]")
     files: list[tuple[str, str]] = []
     for meta in all_meta:
         try:
@@ -245,7 +250,7 @@ def _suggest_taxonomy(input_dir: Path, model: str, console: Console) -> dict[str
 
     try:
         client = OllamaClient(model=model)
-        return client.suggest_taxonomy(files)
+        return client.suggest_taxonomy(files, existing=existing)
     except Exception:
         return {}
 
@@ -280,18 +285,19 @@ def scan_folder(console: Console) -> None:
         console.print(
             f"[dim]Merging {len(folder_tax)} folder categories from output root.[/dim]"
         )
-    suggested_tax = _suggest_taxonomy(input_dir, model, console)
+    existing_tax = merge_taxonomies(base_tax, folder_tax)
+    suggested_tax = _suggest_taxonomy(input_dir, model, console, existing=existing_tax)
     if suggested_tax:
         from rich.tree import Tree
-        tree = Tree("[bold]Suggested taxonomy based on your files:[/bold]")
+        tree = Tree("[bold]Suggested additions to taxonomy:[/bold]")
         for cat, subs in suggested_tax.items():
             branch = tree.add(f"[cyan]{cat}[/cyan]")
             for sub in subs:
                 branch.add(sub)
         console.print(tree)
-        if not typer.confirm("Merge into taxonomy?", default=True):
+        if not typer.confirm("Add to taxonomy?", default=True):
             suggested_tax = {}
-    merged_tax = merge_taxonomies(merge_taxonomies(base_tax, folder_tax), suggested_tax)
+    merged_tax = merge_taxonomies(existing_tax, suggested_tax)
     tmp_tax_path = plan_path.parent / f"taxonomy-{plan_path.stem}.yaml"
     with open(tmp_tax_path, "w", encoding="utf-8") as _f:
         _yaml.dump(merged_tax, _f, allow_unicode=True, default_flow_style=False)

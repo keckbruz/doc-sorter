@@ -143,6 +143,38 @@ def test_suggest_taxonomy_omits_empty_peek():
     assert "image.jpg" in prompt
 
 
+def test_suggest_taxonomy_with_existing_includes_existing_in_prompt():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "{}"}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    existing = {"Finanzen": ["Rechnungen", "Steuern"], "Wohnen": ["Miete"]}
+    client.suggest_taxonomy([("handbuch.pdf", "Router Handbuch")], existing=existing)
+
+    prompt = client._client.post.call_args.kwargs["json"]["prompt"]
+    assert "EXISTING FOLDER STRUCTURE" in prompt
+    assert "Finanzen" in prompt
+    assert "Rechnungen" in prompt
+    assert "only" in prompt.lower()
+
+
+def test_suggest_taxonomy_with_existing_excludes_special_categories():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "{}"}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    existing = {"Finanzen": [], "Review": [], "Archiv": [], "Duplikate": []}
+    client.suggest_taxonomy([("file.pdf", "")], existing=existing)
+
+    prompt = client._client.post.call_args.kwargs["json"]["prompt"]
+    # Special categories should not appear in the existing structure shown to the model
+    existing_section = prompt.split("NEW DOCUMENTS")[0]
+    assert "Review" not in existing_section
+    assert "Archiv" not in existing_section
+
+
 def test_result_cache_miss(tmp_path):
     cache = ResultCache(tmp_path / "cache")
     result = cache.get("abc123", "model-name")

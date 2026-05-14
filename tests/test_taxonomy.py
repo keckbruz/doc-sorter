@@ -104,6 +104,31 @@ def test_read_output_taxonomy_skips_files(tmp_path):
     assert "Finanzen" in result
 
 
+def test_read_output_taxonomy_max_depth_1_omits_subcategories(tmp_path):
+    (tmp_path / "Finanzen").mkdir()
+    (tmp_path / "Finanzen" / "Steuern").mkdir()
+
+    result = read_output_taxonomy(tmp_path, max_depth=1)
+    assert "Finanzen" in result
+    assert result["Finanzen"] == []
+
+
+def test_read_output_taxonomy_max_depth_2_includes_subcategories(tmp_path):
+    (tmp_path / "Finanzen").mkdir()
+    (tmp_path / "Finanzen" / "Steuern").mkdir()
+
+    result = read_output_taxonomy(tmp_path, max_depth=2)
+    assert "Steuern" in result["Finanzen"]
+
+
+def test_read_output_taxonomy_ignores_third_level(tmp_path):
+    (tmp_path / "Finanzen" / "Steuern" / "2024").mkdir(parents=True)
+
+    result = read_output_taxonomy(tmp_path, max_depth=2)
+    assert "2024" not in result.get("Finanzen", [])
+    assert "2024" not in result
+
+
 # --- merge_taxonomies ---
 
 def test_merge_taxonomies_adds_new_category():
