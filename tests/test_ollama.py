@@ -63,6 +63,60 @@ def test_generate_disables_thinking_output():
     assert "think" not in payload["options"]
 
 
+def test_suggest_taxonomy_parses_valid_json():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    payload = {"Finanzen": ["Rechnungen", "Steuern"], "Wohnen": ["Miete"]}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": json.dumps(payload)}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    result = client.suggest_taxonomy(["rechnung.pdf", "mietvertrag.docx"])
+    assert result == payload
+
+
+def test_suggest_taxonomy_strips_fences():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    payload = {"Finanzen": ["Steuern"]}
+    wrapped = f"```json\n{json.dumps(payload)}\n```"
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": wrapped}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    result = client.suggest_taxonomy(["steuerbescheid.pdf"])
+    assert result == payload
+
+
+def test_suggest_taxonomy_returns_empty_on_bad_json():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "not json at all"}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    result = client.suggest_taxonomy(["file.pdf"])
+    assert result == {}
+
+
+def test_suggest_taxonomy_returns_empty_on_non_dict():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": '["list", "not", "dict"]'}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    result = client.suggest_taxonomy(["file.pdf"])
+    assert result == {}
+
+
+def test_suggest_taxonomy_normalises_non_list_values():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    payload = {"Finanzen": "Rechnungen"}  # string instead of list
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": json.dumps(payload)}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    result = client.suggest_taxonomy(["file.pdf"])
+    assert result["Finanzen"] == []
+
+
 def test_result_cache_miss(tmp_path):
     cache = ResultCache(tmp_path / "cache")
     result = cache.get("abc123", "model-name")

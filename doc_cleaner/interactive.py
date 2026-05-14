@@ -224,6 +224,22 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
     return apply
 
 
+def _suggest_taxonomy(input_dir: Path, model: str, console: Console) -> dict[str, list[str]]:
+    from doc_cleaner.classifier.ollama import OllamaClient
+    from doc_cleaner.scanner import scan_files
+
+    filenames = [meta.filename for meta in scan_files(input_dir, max_files=300)]
+    if not filenames:
+        return {}
+
+    console.print(f"[dim]Analyzing {len(filenames)} filenames to suggest taxonomy...[/dim]")
+    try:
+        client = OllamaClient(model=model)
+        return client.suggest_taxonomy(filenames)
+    except Exception:
+        return {}
+
+
 def scan_folder(console: Console) -> None:
     import yaml as _yaml
     from doc_cleaner.cli import scan
@@ -245,7 +261,7 @@ def scan_folder(console: Console) -> None:
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = Path.home() / ".doc-sorter" / "cache"
 
-    # Build merged taxonomy: German base + existing output folder structure
+    # Build merged taxonomy: German base + existing output folder structure + LLM suggestion
     base_tax_path = Path(__file__).parent.parent / "taxonomy.yaml"
     base_tax = load_taxonomy(base_tax_path)
     resolved_output = output_root.expanduser().resolve()
@@ -254,7 +270,18 @@ def scan_folder(console: Console) -> None:
         console.print(
             f"[dim]Merging {len(folder_tax)} folder categories from output root.[/dim]"
         )
-    merged_tax = merge_taxonomies(base_tax, folder_tax)
+    suggested_tax = _suggest_taxonomy(input_dir, model, console)
+    if suggested_tax:
+        from rich.tree import Tree
+        tree = Tree("[bold]Suggested taxonomy based on your files:[/bold]")
+        for cat, subs in suggested_tax.items():
+            branch = tree.add(f"[cyan]{cat}[/cyan]")
+            for sub in subs:
+                branch.add(sub)
+        console.print(tree)
+        if not typer.confirm("Merge into taxonomy?", default=True):
+            suggested_tax = {}
+    merged_tax = merge_taxonomies(merge_taxonomies(base_tax, folder_tax), suggested_tax)
     tmp_tax_path = plan_path.parent / f"taxonomy-{plan_path.stem}.yaml"
     with open(tmp_tax_path, "w", encoding="utf-8") as _f:
         _yaml.dump(merged_tax, _f, allow_unicode=True, default_flow_style=False)

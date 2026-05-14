@@ -89,6 +89,32 @@ class OllamaClient:
 
         return result
 
+    def suggest_taxonomy(self, filenames: list[str]) -> dict[str, list[str]]:
+        """Ask the model to suggest a folder taxonomy based on a list of filenames."""
+        files_text = "\n".join(f"- {f}" for f in filenames[:200])
+        prompt = (
+            "You are organizing personal documents into a folder structure.\n"
+            "Based on the filenames and extensions below, suggest a 2-level folder taxonomy in German.\n\n"
+            f"FILES:\n{files_text}\n\n"
+            "Return ONLY a valid JSON object. Keys are top-level category names in German. "
+            "Values are arrays of subcategory names in German (may be empty []).\n"
+            "Use 5-10 broad categories. Do not create a category for just one file.\n"
+            "Do not include Review or Archiv — those are added automatically.\n\n"
+            'Example: {"Finanzen": ["Rechnungen", "Steuern"], "Wohnen": ["Miete"]}'
+        )
+        raw = self.generate(prompt)
+        text = raw.strip()
+        fence_match = _JSON_FENCE.search(text)
+        if fence_match:
+            text = fence_match.group(1).strip()
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                return {k: (v if isinstance(v, list) else []) for k, v in data.items()}
+        except Exception:
+            pass
+        return {}
+
     def check_health(self) -> bool:
         try:
             resp = self._client.get(f"{self.host}/api/tags", timeout=5)
