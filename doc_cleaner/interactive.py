@@ -9,11 +9,105 @@ from rich.console import Console
 
 def default_plan_paths() -> tuple[Path, Path, Path]:
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = Path.home() / ".doc-sorter" / "plans"
     return (
-        Path(f"plans/plan-{ts}.csv"),
-        Path(f"plans/plan-{ts}.jsonl"),
-        Path(f"plans/undo-{ts}.json"),
+        base / f"plan-{ts}.csv",
+        base / f"plan-{ts}.jsonl",
+        base / f"undo-{ts}.json",
     )
+
+
+def _arrow_select(title: str, options: list[tuple[str, str]]) -> str:
+    """Full-screen arrow-navigable selection. Returns the key of the chosen option."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout import Layout
+    from prompt_toolkit.layout.containers import Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from prompt_toolkit.styles import Style
+
+    cursor = [0]
+
+    def render() -> list[tuple[str, str]]:
+        lines: list[tuple[str, str]] = [("class:title", f"  {title}\n\n")]
+        for i, (_, label) in enumerate(options):
+            if i == cursor[0]:
+                lines.append(("class:selected", f"  ▶ {label}\n"))
+            else:
+                lines.append(("class:item", f"    {label}\n"))
+        lines.append(("class:hint", "\n  ↑↓ navigate   enter select\n"))
+        return lines
+
+    kb = KeyBindings()
+
+    @kb.add("up")
+    def _up(event):
+        cursor[0] = max(0, cursor[0] - 1)
+
+    @kb.add("down")
+    def _down(event):
+        cursor[0] = min(len(options) - 1, cursor[0] + 1)
+
+    @kb.add("enter")
+    def _enter(event):
+        event.app.exit(result=options[cursor[0]][0])
+
+    style = Style.from_dict({
+        "title": "bold",
+        "selected": "reverse",
+        "item": "",
+        "hint": "ansibrightblack italic",
+    })
+
+    layout = Layout(Window(content=FormattedTextControl(render)))
+    app = Application(layout=layout, key_bindings=kb, style=style, full_screen=True)
+    return app.run()
+
+
+def _path_prompt(label: str, default: str) -> Path:
+    """Inline path prompt with directory tab-completion. Pre-fill ends with / to show contents immediately."""
+    from prompt_toolkit import prompt
+    from prompt_toolkit.completion import PathCompleter
+
+    value = prompt(
+        f"{label}: ",
+        default=default,
+        completer=PathCompleter(only_directories=True, expanduser=True),
+        complete_while_typing=True,
+    )
+    return Path(value).expanduser().resolve()
+
+
+def _model_prompt(default: str) -> str:
+    """Inline model prompt with available Ollama models as completions."""
+    from prompt_toolkit import prompt
+    from prompt_toolkit.completion import WordCompleter
+
+    try:
+        from doc_cleaner.classifier.ollama import OllamaClient
+        models = OllamaClient().list_models()
+    except Exception:
+        models = []
+
+    completer = WordCompleter(models, sentence=True) if models else None
+    value = prompt(
+        "Model: ",
+        default=default,
+        completer=completer,
+        complete_while_typing=bool(models),
+    )
+    return value.strip() or default
+
+
+def _threshold_prompt(default: int = 90) -> int:
+    """Inline confidence threshold prompt."""
+    from prompt_toolkit import prompt
+
+    value = prompt("Confidence threshold: ", default=str(default))
+    try:
+        return max(0, min(100, int(value)))
+    except ValueError:
+        return default
 
 
 def select(console: Console, title: str, options: list[tuple[str, str]]) -> str:
@@ -124,17 +218,20 @@ def scan_folder(console: Console) -> None:
     from doc_cleaner.cli import scan
     from doc_cleaner.review_table import ReviewTableApp
 
-    input_dir = Path(typer.prompt("Folder to scan", default=str(Path.cwd()))).expanduser()
-    while not input_dir.is_dir():
-        console.print(f"[red]Folder not found:[/red] {input_dir}")
-        input_dir = Path(typer.prompt("Folder to scan", default=str(Path.cwd()))).expanduser()
+    cwd_slash = str(Path.cwd()) + "/"
 
-    output_root = Path(typer.prompt("Sorted output folder")).expanduser()
-    model = typer.prompt("Ollama model", default="qwen3.5:9b")
-    threshold = typer.prompt("Confidence threshold", default=90, type=int)
+    input_dir = _path_prompt("Scan folder", cwd_slash)
+    while not input_dir.is_dir():
+        console.print(f"[red]Not a directory:[/red] {input_dir}")
+        input_dir = _path_prompt("Scan folder", str(input_dir.parent) + "/")
+
+    output_root = _path_prompt("Output folder", cwd_slash)
+    model = _model_prompt("qwen3.5:9b")
+    threshold = _threshold_prompt(90)
 
     plan_path, jsonl_path, undo_path = default_plan_paths()
     plan_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir = Path.home() / ".doc-sorter" / "cache"
 
     console.print()
     scan(
@@ -155,7 +252,7 @@ def scan_folder(console: Console) -> None:
         ocr_language="deu+eng",
         workers=1,
         max_text_chars=4000,
-        cache_dir=None,
+        cache_dir=cache_dir,
         taxonomy=None,
         limit=None,
         verbose=False,
@@ -177,7 +274,7 @@ def apply_existing_plan(console: Console) -> None:
     from doc_cleaner.applier import apply_plan
 
     plan_path = prompt_existing_path(console, "Plan CSV")
-    default_undo = Path(f"plans/undo-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
+    default_undo = Path.home() / ".doc-sorter" / "plans" / f"undo-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     undo_path = Path(typer.prompt("Undo manifest", default=str(default_undo))).expanduser()
     threshold = typer.prompt("Confidence threshold", default=90, type=int)
 
@@ -213,35 +310,30 @@ def undo_previous_apply(console: Console) -> None:
 
 
 def run() -> None:
-    """Run a simple terminal-first workflow without a full-screen TUI."""
-    from doc_cleaner.cli import doctor
-
+    """Interactive workflow with arrow navigation."""
     console = Console()
-    console.print("[bold]doc-sorter[/bold]")
-    console.print("Use arrow-free terminal prompts: type a number, press Enter.")
-    console.print()
 
     while True:
-        action = select(
-            console,
-            "What do you want to do?",
-            [
-                ("scan", "Scan a folder and create a plan."),
-                ("apply", "Apply an existing reviewed plan."),
-                ("undo", "Undo a previous apply."),
-                ("doctor", "Check local setup."),
-                ("quit", "Quit."),
-            ],
-        )
-        console.print()
+        action = _arrow_select("doc-sorter", [
+            ("scan", "Scan a folder"),
+            ("apply", "Apply an existing plan"),
+            ("undo", "Undo a previous apply"),
+            ("doctor", "Check setup"),
+            ("quit", "Quit"),
+        ])
 
         if action == "scan":
+            console.print()
             scan_folder(console)
         elif action == "apply":
+            console.print()
             apply_existing_plan(console)
         elif action == "undo":
+            console.print()
             undo_previous_apply(console)
         elif action == "doctor":
+            console.print()
+            from doc_cleaner.cli import doctor
             doctor()
         else:
             return
