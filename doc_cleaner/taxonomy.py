@@ -39,3 +39,33 @@ def normalize_category(
     if not is_valid_category(category, subcategory, taxonomy):
         return REVIEW_CATEGORY, None
     return category, subcategory
+
+
+def read_output_taxonomy(output_root: Path) -> Taxonomy:
+    """Walk up to 2 levels of output_root dirs to build a taxonomy overlay."""
+    result: Taxonomy = {}
+    if not output_root.is_dir():
+        return result
+    for cat_dir in sorted(output_root.iterdir()):
+        if not cat_dir.is_dir() or cat_dir.name.startswith("."):
+            continue
+        subs = [
+            d.name for d in sorted(cat_dir.iterdir())
+            if d.is_dir() and not d.name.startswith(".")
+        ]
+        result[cat_dir.name] = subs
+    return result
+
+
+def merge_taxonomies(base: Taxonomy, overlay: Taxonomy) -> Taxonomy:
+    """Merge overlay into base. Adds new categories/subcategories; never removes."""
+    merged = {k: list(v) for k, v in base.items()}
+    for cat, subs in overlay.items():
+        if cat in merged:
+            existing = set(merged[cat])
+            for sub in subs:
+                if sub not in existing:
+                    merged[cat].append(sub)
+        else:
+            merged[cat] = list(subs)
+    return merged

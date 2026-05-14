@@ -225,8 +225,10 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
 
 
 def scan_folder(console: Console) -> None:
+    import yaml as _yaml
     from doc_cleaner.cli import scan
     from doc_cleaner.review_table import ReviewTableApp
+    from doc_cleaner.taxonomy import load_taxonomy, merge_taxonomies, read_output_taxonomy
 
     cwd_slash = str(Path.cwd()) + "/"
 
@@ -242,6 +244,20 @@ def scan_folder(console: Console) -> None:
     plan_path, jsonl_path, undo_path = default_plan_paths()
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = Path.home() / ".doc-sorter" / "cache"
+
+    # Build merged taxonomy: German base + existing output folder structure
+    base_tax_path = Path(__file__).parent.parent / "taxonomy.yaml"
+    base_tax = load_taxonomy(base_tax_path)
+    resolved_output = output_root.expanduser().resolve()
+    folder_tax = read_output_taxonomy(resolved_output)
+    if folder_tax:
+        console.print(
+            f"[dim]Merging {len(folder_tax)} folder categories from output root.[/dim]"
+        )
+    merged_tax = merge_taxonomies(base_tax, folder_tax)
+    tmp_tax_path = plan_path.parent / f"taxonomy-{plan_path.stem}.yaml"
+    with open(tmp_tax_path, "w", encoding="utf-8") as _f:
+        _yaml.dump(merged_tax, _f, allow_unicode=True, default_flow_style=False)
 
     console.print()
     scan(
@@ -263,7 +279,7 @@ def scan_folder(console: Console) -> None:
         workers=1,
         max_text_chars=4000,
         cache_dir=cache_dir,
-        taxonomy=None,
+        taxonomy=tmp_tax_path,
         limit=None,
         verbose=False,
         quiet=False,

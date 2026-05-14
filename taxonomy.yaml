@@ -1,53 +1,57 @@
-Finance:
-  - Banking
-  - Taxes
-  - Insurance
-  - Investments
-  - Invoices
-  - Receipts
-Legal:
-  - Contracts
-  - Government
-  - Court
-  - Other
-Work:
-  - Employment
-  - Projects
-  - Applications
-  - Other
-Education:
-  - University
-  - Certificates
-  - Courses
-  - Other
-Health:
-  - Bills
-  - Reports
-  - Insurance
-  - Other
-Household:
-  - Rent
-  - Utilities
+Finanzen:
+  - Bankwesen
+  - Steuern
+  - Versicherung
+  - Geldanlage
+  - Rechnungen
+  - Quittungen
+Verträge:
+  - Arbeitsvertrag
+  - Mietvertrag
+  - Dienstleistungsvertrag
+  - Sonstiges
+Behörden:
+  - Ausweise
+  - Meldewesen
+  - Bescheide
+  - Sonstiges
+Gesundheit:
+  - Arztberichte
+  - Rechnungen
+  - Versicherung
+  - Rezepte
+Arbeit:
+  - Gehaltsabrechnungen
+  - Verträge
+  - Zeugnisse
+  - Bewerbungen
+Bildung:
+  - Zertifikate
+  - Hochschule
+  - Kurse
+  - Sonstiges
+Wohnen:
+  - Miete
+  - Nebenkosten
   - Internet
-  - Manuals
-  - Other
-Vehicles:
-  - Insurance
-  - Maintenance
-  - Registration
-  - Other
-Personal:
-  - Letters
-  - Travel
-  - Identity
-  - Other
-Media:
-  - Photos
+  - Anleitungen
+Fahrzeuge:
+  - Versicherung
+  - Wartung
+  - Zulassung
+  - Sonstiges
+Persönliches:
+  - Briefe
+  - Reise
+  - Ausweise
+  - Sonstiges
+Medien:
+  - Fotos
   - Screenshots
   - Videos
 Software:
-  - Licenses
-  - Manuals
-Archive: []
+  - Lizenzen
+  - Anleitungen
+Archiv: []
 Review: []
-Duplicates: []
+Duplikate: []
