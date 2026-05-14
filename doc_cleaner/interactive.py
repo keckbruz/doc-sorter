@@ -226,16 +226,26 @@ def _make_apply_callback(plan_csv: Path, undo_path: Path):
 
 def _suggest_taxonomy(input_dir: Path, model: str, console: Console) -> dict[str, list[str]]:
     from doc_cleaner.classifier.ollama import OllamaClient
+    from doc_cleaner.extractors import extract_text
     from doc_cleaner.scanner import scan_files
 
-    filenames = [meta.filename for meta in scan_files(input_dir, max_files=300)]
-    if not filenames:
+    all_meta = list(scan_files(input_dir, max_files=300))
+    if not all_meta:
         return {}
 
-    console.print(f"[dim]Analyzing {len(filenames)} filenames to suggest taxonomy...[/dim]")
+    console.print(f"[dim]Peeking at {len(all_meta)} files to suggest taxonomy...[/dim]")
+    files: list[tuple[str, str]] = []
+    for meta in all_meta:
+        try:
+            result = extract_text(meta, max_chars=300, ocr=False)
+            peek = result.text.strip()
+        except Exception:
+            peek = ""
+        files.append((meta.filename, peek))
+
     try:
         client = OllamaClient(model=model)
-        return client.suggest_taxonomy(filenames)
+        return client.suggest_taxonomy(files)
     except Exception:
         return {}
 

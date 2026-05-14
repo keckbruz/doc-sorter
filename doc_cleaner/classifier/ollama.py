@@ -89,12 +89,22 @@ class OllamaClient:
 
         return result
 
-    def suggest_taxonomy(self, filenames: list[str]) -> dict[str, list[str]]:
-        """Ask the model to suggest a folder taxonomy based on a list of filenames."""
-        files_text = "\n".join(f"- {f}" for f in filenames[:200])
+    def suggest_taxonomy(self, files: list[tuple[str, str]]) -> dict[str, list[str]]:
+        """Ask the model to suggest a folder taxonomy based on filenames + text peeks.
+
+        Each entry in files is (filename, peek_text). peek_text may be empty.
+        """
+        lines = []
+        for filename, peek in files[:200]:
+            if peek:
+                short = peek.replace("\n", " ").strip()[:150]
+                lines.append(f"- {filename}: \"{short}\"")
+            else:
+                lines.append(f"- {filename}")
+        files_text = "\n".join(lines)
         prompt = (
             "You are organizing personal documents into a folder structure.\n"
-            "Based on the filenames and extensions below, suggest a 2-level folder taxonomy in German.\n\n"
+            "Based on the filenames and content snippets below, suggest a 2-level folder taxonomy in German.\n\n"
             f"FILES:\n{files_text}\n\n"
             "Return ONLY a valid JSON object. Keys are top-level category names in German. "
             "Values are arrays of subcategory names in German (may be empty []).\n"

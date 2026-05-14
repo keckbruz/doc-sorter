@@ -70,7 +70,7 @@ def test_suggest_taxonomy_parses_valid_json():
     mock_response.json.return_value = {"response": json.dumps(payload)}
     client._client.post = MagicMock(return_value=mock_response)
 
-    result = client.suggest_taxonomy(["rechnung.pdf", "mietvertrag.docx"])
+    result = client.suggest_taxonomy([("rechnung.pdf", "Vodafone GmbH Rechnung"), ("mietvertrag.docx", "")])
     assert result == payload
 
 
@@ -82,7 +82,7 @@ def test_suggest_taxonomy_strips_fences():
     mock_response.json.return_value = {"response": wrapped}
     client._client.post = MagicMock(return_value=mock_response)
 
-    result = client.suggest_taxonomy(["steuerbescheid.pdf"])
+    result = client.suggest_taxonomy([("steuerbescheid.pdf", "Finanzamt München")])
     assert result == payload
 
 
@@ -92,7 +92,7 @@ def test_suggest_taxonomy_returns_empty_on_bad_json():
     mock_response.json.return_value = {"response": "not json at all"}
     client._client.post = MagicMock(return_value=mock_response)
 
-    result = client.suggest_taxonomy(["file.pdf"])
+    result = client.suggest_taxonomy([("file.pdf", "")])
     assert result == {}
 
 
@@ -102,7 +102,7 @@ def test_suggest_taxonomy_returns_empty_on_non_dict():
     mock_response.json.return_value = {"response": '["list", "not", "dict"]'}
     client._client.post = MagicMock(return_value=mock_response)
 
-    result = client.suggest_taxonomy(["file.pdf"])
+    result = client.suggest_taxonomy([("file.pdf", "")])
     assert result == {}
 
 
@@ -113,8 +113,34 @@ def test_suggest_taxonomy_normalises_non_list_values():
     mock_response.json.return_value = {"response": json.dumps(payload)}
     client._client.post = MagicMock(return_value=mock_response)
 
-    result = client.suggest_taxonomy(["file.pdf"])
+    result = client.suggest_taxonomy([("file.pdf", "")])
     assert result["Finanzen"] == []
+
+
+def test_suggest_taxonomy_includes_peek_in_prompt():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "{}"}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    client.suggest_taxonomy([("rechnung.pdf", "Vodafone GmbH Rechnung März 2024")])
+
+    prompt = client._client.post.call_args.kwargs["json"]["prompt"]
+    assert "Vodafone GmbH" in prompt
+    assert "rechnung.pdf" in prompt
+
+
+def test_suggest_taxonomy_omits_empty_peek():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "{}"}
+    client._client.post = MagicMock(return_value=mock_response)
+
+    client.suggest_taxonomy([("image.jpg", "")])
+
+    prompt = client._client.post.call_args.kwargs["json"]["prompt"]
+    assert '""' not in prompt
+    assert "image.jpg" in prompt
 
 
 def test_result_cache_miss(tmp_path):
