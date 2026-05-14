@@ -14,3 +14,4 @@ doc_sorter.log
 sorted/
 **/.DS_Store
 .superpowers/
+DocSorter/DocSorter.xcodeproj/
