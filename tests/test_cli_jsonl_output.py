@@ -86,6 +86,43 @@ def test_jsonl_output_emits_done_event(tmp_path):
     assert "plan" in done[0]
 
 
+def test_jsonl_output_emits_error_event_on_connection_error(tmp_path):
+    doc = tmp_path / "input" / "rechnung.txt"
+    doc.parent.mkdir()
+    doc.write_text("Vodafone Rechnung 2024")
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    plan = tmp_path / "plan.csv"
+
+    with patch("doc_cleaner.cli._ensure_ollama"), \
+         patch("doc_cleaner.classifier.ollama.OllamaClient") as mock_client_cls, \
+         patch("doc_cleaner.cache.ResultCache") as mock_cache_cls:
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+        mock_cache_cls.return_value = mock_cache
+
+        mock_client = MagicMock()
+        mock_client.classify.side_effect = ConnectionError("Ollama is not running at http://127.0.0.1:11434")
+        mock_client_cls.return_value = mock_client
+
+        result = runner.invoke(app, [
+            "scan",
+            "--input", str(doc.parent),
+            "--output-root", str(out_dir),
+            "--plan", str(plan),
+            "--output-format", "jsonl",
+        ])
+
+    assert result.exit_code == 1
+    stdout = _stdout(result)
+    lines = [l for l in stdout.strip().splitlines() if l.strip()]
+    events = [json.loads(l) for l in lines]
+    error_events = [e for e in events if e["event"] == "error"]
+    assert len(error_events) == 1
+    assert "Ollama" in error_events[0]["message"]
+
+
 def test_text_format_emits_no_json(tmp_path):
     doc = tmp_path / "input" / "rechnung.txt"
     doc.parent.mkdir()

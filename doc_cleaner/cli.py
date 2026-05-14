@@ -87,6 +87,7 @@ def scan(
     output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
 ) -> None:
     """Scan and classify documents. Writes a reviewable plan. Never moves files."""
+    import json
     import time
     from datetime import datetime
     from rich.console import Console
@@ -214,8 +215,7 @@ def scan(
 
             except ConnectionError as e:
                 if output_format == "jsonl":
-                    import json as _json
-                    print(_json.dumps({"event": "error", "message": str(e)}), flush=True)
+                    print(json.dumps({"event": "error", "message": str(e)}), flush=True)
                 console.print(f"\n[red]{e}[/red]")
                 raise typer.Exit(1)
             except Exception as e:
@@ -263,8 +263,7 @@ def scan(
             ))
 
             if output_format == "jsonl":
-                import json as _json
-                print(_json.dumps({
+                print(json.dumps({
                     "event": "progress",
                     "file": meta.filename,
                     "status": "classified" if status == "planned" else status,
@@ -275,8 +274,7 @@ def scan(
                 }), flush=True)
 
     if output_format == "jsonl":
-        import json as _json
-        print(_json.dumps({
+        print(json.dumps({
             "event": "done",
             "plan": str(plan_path),
             "undo": None,
