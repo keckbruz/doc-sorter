@@ -481,6 +481,59 @@ def doctor() -> None:
     console.print(table)
 
 
+@app.command("suggest-taxonomy")
+def suggest_taxonomy_cmd(
+    input: Path = typer.Option(..., "--input", "-i", help="Folder to scan"),
+    output_root: Path = typer.Option(..., "--output-root", help="Output folder (used as existing taxonomy context)"),
+    model: str = typer.Option("qwen3.5:9b", "--model"),
+    ollama_host: str = typer.Option("http://127.0.0.1:11434", "--ollama-host"),
+    allow_remote_ollama: bool = typer.Option(False, "--allow-remote-ollama"),
+    max_text_chars: int = typer.Option(300, "--max-text-chars"),
+) -> None:
+    """Suggest taxonomy additions for a folder of documents. Prints JSON to stdout."""
+    import json
+    from rich.console import Console
+    from doc_cleaner.classifier.ollama import OllamaClient
+    from doc_cleaner.extractors import extract_text
+    from doc_cleaner.scanner import scan_files
+    from doc_cleaner.taxonomy import (
+        load_taxonomy, merge_taxonomies, read_output_taxonomy
+    )
+
+    console = Console(stderr=True)
+    _ensure_ollama(ollama_host, console)
+
+    resolved_input = input.expanduser().resolve()
+    resolved_output = output_root.expanduser().resolve()
+
+    all_meta = list(scan_files(resolved_input, max_files=300))
+    if not all_meta:
+        print(json.dumps({}))
+        return
+
+    files: list[tuple[str, str]] = []
+    for meta in all_meta:
+        try:
+            result = extract_text(meta, max_chars=max_text_chars, ocr=False)
+            peek = result.text.strip()
+        except Exception:
+            peek = ""
+        files.append((meta.filename, peek))
+
+    base_tax_path = Path(__file__).parent.parent / "taxonomy.yaml"
+    base_tax = load_taxonomy(base_tax_path)
+    folder_tax = read_output_taxonomy(resolved_output)
+    existing = merge_taxonomies(base_tax, folder_tax)
+
+    try:
+        client = OllamaClient(host=ollama_host, model=model, allow_remote=allow_remote_ollama)
+        additions = client.suggest_taxonomy(files, existing=existing)
+    except Exception:
+        additions = {}
+
+    print(json.dumps(additions, ensure_ascii=False))
+
+
 @app.command()
 def ui() -> None:
     """Launch the simple interactive terminal workflow."""
