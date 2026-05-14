@@ -1,4 +1,4 @@
-# doc-cleaner
+# doc-sorter
 
 A local-first, privacy-preserving CLI for classifying and organizing messy document folders on macOS.
 
@@ -22,7 +22,7 @@ A local-first, privacy-preserving CLI for classifying and organizing messy docum
 
 ```bash
 git clone <repo>
-cd doc-cleaner
+cd doc-sorter
 pip install -e .
 ```
 
@@ -34,7 +34,7 @@ ollama serve
 ollama pull qwen3.5:9b
 
 # Verify
-python -m doc_cleaner doctor
+doc-sorter doctor
 ```
 
 ## OCR setup (optional)
@@ -42,15 +42,39 @@ python -m doc_cleaner doctor
 ```bash
 brew install tesseract tesseract-lang
 pip install pytesseract
-python -m doc_cleaner doctor   # should show Tesseract OK
+doc-sorter doctor   # should show Tesseract OK
 ```
 
 ## Usage
 
+### Simple interactive terminal flow
+
+Run without arguments and answer the prompts:
+
+```bash
+doc-sorter
+```
+
+This opens a plain numbered terminal workflow. From there you can scan a folder, apply an existing reviewed plan, undo a previous apply, or run the setup check. It writes reviewable plans under `plans/` and does not open a full-screen UI.
+
+### Non-interactive full pipeline
+
+For automation, `run` scans and applies confident matches in one command. It never prompts, but it requires `--yes` before it will move files:
+
+```bash
+doc-sorter run \
+  --input ~/Downloads \
+  --output-root ~/Documents/Sorted \
+  --confidence-threshold 90 \
+  --yes
+```
+
+This still writes a CSV/JSONL plan and an undo manifest under `plans/`.
+
 ### 1. Scan (dry-run, no files moved)
 
 ```bash
-python -m doc_cleaner scan \
+doc-sorter scan \
   --input ~/Downloads \
   --output-root ~/Documents/Sorted \
   --model qwen3.5:9b \
@@ -81,7 +105,7 @@ Open `plans/downloads-plan.csv` in Numbers, Excel, or a text editor. For each ro
 ### 3. Apply approved moves
 
 ```bash
-python -m doc_cleaner apply \
+doc-sorter apply \
   --plan ./plans/downloads-plan.csv \
   --undo ./plans/undo-2026-05-13.json
 ```
@@ -91,7 +115,7 @@ You'll see a summary and a confirmation prompt before any files are moved.
 ### 4. Undo
 
 ```bash
-python -m doc_cleaner undo \
+doc-sorter undo \
   --undo-manifest ./plans/undo-2026-05-13.json
 ```
 
@@ -103,7 +127,7 @@ bash ./plans/undo-2026-05-13.sh
 ### 5. Classify only first 50 files (for testing)
 
 ```bash
-python -m doc_cleaner scan \
+doc-sorter scan \
   --input ~/Downloads \
   --output-root ~/Documents/Sorted \
   --limit 50

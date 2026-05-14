@@ -58,6 +58,7 @@ class OllamaClient:
             "prompt": prompt,
             "stream": False,
             "format": "json",
+            "think": False,
             "options": {"temperature": 0.1},
         }
         try:

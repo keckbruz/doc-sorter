@@ -50,6 +50,19 @@ def test_ollama_client_allows_localhost():
     assert client.host == "http://127.0.0.1:11434"
 
 
+def test_generate_disables_thinking_output():
+    client = OllamaClient(host="http://127.0.0.1:11434", model="test")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"response": "{}"}
+    client._client.post = MagicMock(return_value=mock_response)  # type: ignore[method-assign]
+
+    client.generate("prompt")
+
+    payload = client._client.post.call_args.kwargs["json"]  # type: ignore[union-attr]
+    assert payload["think"] is False
+    assert "think" not in payload["options"]
+
+
 def test_result_cache_miss(tmp_path):
     cache = ResultCache(tmp_path / "cache")
     result = cache.get("abc123", "model-name")
