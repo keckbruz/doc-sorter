@@ -1,0 +1,14 @@
+Vodafone GmbH
+Rechnungsdatum: 05.03.2024
+Kundennummer: 987654321
+
+Rechnung für Ihren Vodafone-Vertrag
+
+Zeitraum: 01.03.2024 – 31.03.2024
+
+Internet & Festnetz Komfort 100:   39,99 EUR
+Mobilfunk Red L (2 Nummern):       35,00 EUR
+Mehrwertsteuer (19%):              14,25 EUR
+
+Gesamtbetrag: 89,24 EUR
+Fällig: 20.03.2024

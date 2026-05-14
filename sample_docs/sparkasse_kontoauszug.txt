@@ -1,0 +1,13 @@
+Sparkasse München
+Kontoauszug Nr. 03/2024
+
+Kontoinhaber: Max Mustermann
+IBAN: DE98 7654 3210 9876 5432 10
+BIC: SSKMDEMM
+Zeitraum: 01.03.2024 – 31.03.2024
+
+Anfangssaldo:    2.500,00 EUR
++ Gehalt März:   3.200,00 EUR
+- Miete:         -950,00 EUR
+- Strom:         -85,00 EUR
+Endsaldo:        4.665,00 EUR

@@ -310,32 +310,6 @@ def undo_previous_apply(console: Console) -> None:
 
 
 def run() -> None:
-    """Interactive workflow with arrow navigation."""
+    """Interactive workflow — goes straight to scan."""
     console = Console()
-
-    while True:
-        action = _arrow_select("doc-sorter", [
-            ("scan", "Scan a folder"),
-            ("apply", "Apply an existing plan"),
-            ("undo", "Undo a previous apply"),
-            ("doctor", "Check setup"),
-            ("quit", "Quit"),
-        ])
-
-        if action == "scan":
-            console.print()
-            scan_folder(console)
-        elif action == "apply":
-            console.print()
-            apply_existing_plan(console)
-        elif action == "undo":
-            console.print()
-            undo_previous_apply(console)
-        elif action == "doctor":
-            console.print()
-            from doc_cleaner.cli import doctor
-            doctor()
-        else:
-            return
-
-        console.print()
+    scan_folder(console)

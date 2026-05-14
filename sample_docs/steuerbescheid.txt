@@ -1,0 +1,18 @@
+Finanzamt München
+Finanzamt-Nr.: 143/234
+
+Einkommensteuerbescheid 2023
+
+Steuerpflichtige/r: Max Mustermann
+Steuer-IdNr.: 12 345 678 901
+Bescheid vom: 15.02.2024
+
+Zu versteuerndes Einkommen: 68.400,00 EUR
+Einkommensteuer:             14.820,00 EUR
+Solidaritätszuschlag:             0,00 EUR
+Kirchensteuer:                    0,00 EUR
+
+Bereits gezahlt (Lohnsteuer):  15.200,00 EUR
+Erstattung:                       380,00 EUR
+
+Rechtsmittelbelehrung: Gegen diesen Bescheid können Sie Einspruch einlegen.
