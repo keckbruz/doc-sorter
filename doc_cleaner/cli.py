@@ -268,8 +268,6 @@ def scan(
         console.print(f"  Errors:        {counts['errors']}")
         console.print(f"  Cached:        {counts['cached']}")
         console.print(f"  Plan written to: {plan_path}")
-        console.print()
-        console.print("[yellow]No files were moved.[/yellow] Review the plan, then run apply.")
 
 
 @app.command("run")

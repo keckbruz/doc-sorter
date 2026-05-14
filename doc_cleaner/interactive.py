@@ -290,10 +290,13 @@ def scan_folder(console: Console) -> None:
         console.print("[yellow]No files to review.[/yellow]")
         return
 
+    console.print(f"\n[bold]Opening review table[/bold] ({len(rows)} files) — press [bold]a[/bold] to apply, [bold]q[/bold] to quit without moving.\n")
     apply_cb = _make_apply_callback(plan_path, undo_path)
     applied = ReviewTableApp(rows, threshold=threshold, apply_callback=apply_cb).run()
     if applied:
         console.print(f"\n[green]Done.[/green] Undo manifest: {undo_path}")
+    else:
+        console.print("\n[yellow]No files moved.[/yellow] Run again or apply the plan manually.")
 
 
 def apply_existing_plan(console: Console) -> None:
