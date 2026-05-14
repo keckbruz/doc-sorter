@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 app = typer.Typer(
-    name="doc-cleaner",
+    name="doc-sorter",
     help="Local document classifier and organizer. Privacy-preserving, dry-run by default.",
     no_args_is_help=True,
 )
@@ -120,9 +120,9 @@ def scan(
     jsonl_path = jsonl or Path(f"plans/plan-{ts}.jsonl")
 
     # Cache dir
-    cache_path = cache_dir or Path(".doc-cleaner-cache")
+    cache_path = cache_dir or Path(".doc-sorter-cache")
 
-    setup_logging(Path("doc_cleaner.log"), verbose=verbose)
+    setup_logging(Path("doc_sorter.log"), verbose=verbose)
 
     try:
         ollama = OllamaClient(
@@ -178,7 +178,8 @@ def scan(
                     extractor_name = extraction.extractor
                     prompt = build_prompt(meta, extraction.text, tax)
                     classification = ollama.classify(prompt)
-                    cache.set(meta.file_hash, model, classification)
+                    if classification.confidence >= confidence_threshold:
+                        cache.set(meta.file_hash, model, classification)
 
                 # Force needs_review if below confidence threshold
                 if classification.confidence < confidence_threshold:
@@ -271,6 +272,92 @@ def scan(
         console.print("[yellow]No files were moved.[/yellow] Review the plan, then run apply.")
 
 
+@app.command("run")
+def run_pipeline(
+    input: Path = typer.Option(..., "--input", "-i", help="Folder to scan"),
+    output_root: Path = typer.Option(..., "--output-root", help="Root for sorted output"),
+    model: str = typer.Option("qwen3.5:9b", "--model"),
+    ollama_host: str = typer.Option("http://127.0.0.1:11434", "--ollama-host"),
+    allow_remote_ollama: bool = typer.Option(False, "--allow-remote-ollama"),
+    plan: Path | None = typer.Option(None, "--plan"),
+    jsonl: Path | None = typer.Option(None, "--jsonl"),
+    undo: Path | None = typer.Option(None, "--undo"),
+    confidence_threshold: int = typer.Option(90, "--confidence-threshold", min=0, max=100),
+    max_files: int | None = typer.Option(None, "--max-files"),
+    max_depth: int | None = typer.Option(None, "--max-depth"),
+    include_hidden: bool = typer.Option(False, "--include-hidden"),
+    follow_symlinks: bool = typer.Option(False, "--follow-symlinks"),
+    ocr: bool = typer.Option(False, "--ocr/--no-ocr"),
+    ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
+    workers: int = typer.Option(1, "--workers"),
+    max_text_chars: int = typer.Option(4000, "--max-text-chars"),
+    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
+    taxonomy: Path | None = typer.Option(None, "--taxonomy"),
+    limit: int | None = typer.Option(None, "--limit"),
+    verbose: bool = typer.Option(False, "--verbose"),
+    quiet: bool = typer.Option(False, "--quiet"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Required to move files without confirmation"),
+) -> None:
+    """Scan and apply confident matches in one non-interactive pipeline."""
+    from datetime import datetime
+    from rich.console import Console
+    from doc_cleaner.applier import apply_plan
+
+    console = Console()
+    if not yes:
+        console.print("[red]Refusing to move files without --yes.[/red]")
+        console.print("Use `scan` for a plan-only run, or add `--yes` to run the full pipeline.")
+        raise typer.Exit(1)
+
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    plan_path = plan or Path(f"plans/plan-{ts}.csv")
+    jsonl_path = jsonl or Path(f"plans/plan-{ts}.jsonl")
+    undo_path = undo or Path(f"plans/undo-{ts}.json")
+
+    scan(
+        input=input,
+        output_root=output_root,
+        model=model,
+        ollama_host=ollama_host,
+        allow_remote_ollama=allow_remote_ollama,
+        plan=plan_path,
+        jsonl=jsonl_path,
+        dry_run=True,
+        confidence_threshold=confidence_threshold,
+        max_files=max_files,
+        max_depth=max_depth,
+        include_hidden=include_hidden,
+        follow_symlinks=follow_symlinks,
+        ocr=ocr,
+        ocr_language=ocr_language,
+        workers=workers,
+        max_text_chars=max_text_chars,
+        cache_dir=cache_dir,
+        taxonomy=taxonomy,
+        limit=limit,
+        verbose=verbose,
+        quiet=quiet,
+    )
+
+    result = apply_plan(
+        plan_path,
+        undo_path,
+        yes=True,
+        apply_all_above_threshold=True,
+        confidence_threshold=confidence_threshold,
+    )
+
+    if not quiet:
+        console.print(f"\n[bold green]Pipeline complete[/bold green]")
+        console.print(f"  Moved:         {result.moved}")
+        console.print(f"  Skipped:       {result.skipped}")
+        console.print(f"  Errors:        {len(result.errors)}")
+        console.print(f"  Plan:          {plan_path}")
+        console.print(f"  Undo manifest: {undo_path}")
+        for err in result.errors:
+            console.print(f"    [red]{err}[/red]")
+
+
 @app.command()
 def apply(
     plan: Path = typer.Option(..., "--plan", help="Reviewed plan CSV"),
@@ -325,7 +412,7 @@ def doctor() -> None:
     from rich.table import Table
 
     console = Console()
-    table = Table(title="doc-cleaner doctor", show_header=True)
+    table = Table(title="doc-sorter doctor", show_header=True)
     table.add_column("Check")
     table.add_column("Status")
     table.add_column("Detail")
@@ -372,6 +459,6 @@ def doctor() -> None:
 
 @app.command()
 def ui() -> None:
-    """Launch the interactive TUI."""
-    from doc_cleaner.tui import run
+    """Launch the simple interactive terminal workflow."""
+    from doc_cleaner.interactive import run
     run()
