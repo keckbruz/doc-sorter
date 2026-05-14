@@ -92,7 +92,7 @@ Return exactly this JSON structure:
   "document_date": "YYYY-MM-DD or null",
   "sender": "... or null",
   "document_type": "...",
-  "suggested_filename": "YYYY-MM-DD - Sender - DocumentType.ext",
+  "suggested_filename": "YYYY-MM_documenttype_sender.ext",
   "confidence": 0,
   "reason": "...",
   "needs_review": true

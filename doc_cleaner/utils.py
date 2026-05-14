@@ -5,8 +5,21 @@ import hashlib
 from pathlib import Path
 
 FORBIDDEN_CHARS = re.compile(r'[:/\\*?"<>|]')
-MULTI_SPACE = re.compile(r' {2,}')
-MAX_STEM_LEN = 196  # leaves room for " (2)" collision suffix
+WHITESPACE = re.compile(r'\s+')
+_YEAR_MONTH_RE = re.compile(r'^(\d{4})-(\d{2})')
+MAX_SENDER_LEN = 25
+
+
+def _slugify(text: str) -> str:
+    """Lowercase, strip forbidden chars, collapse whitespace to hyphens."""
+    clean = FORBIDDEN_CHARS.sub("", text).strip()
+    return WHITESPACE.sub("-", clean).lower()
+
+
+def _year_month(date: str) -> str:
+    """Extract YYYY-MM from a full date string, or return the string as-is."""
+    m = _YEAR_MONTH_RE.match(date)
+    return f"{m.group(1)}-{m.group(2)}" if m else date
 
 
 def sanitize_filename(
@@ -18,21 +31,20 @@ def sanitize_filename(
 ) -> str:
     parts: list[str] = []
 
-    parts.append(date if date else "undated")
-
-    if sender:
-        clean = FORBIDDEN_CHARS.sub("", sender).strip()
-        clean = MULTI_SPACE.sub(" ", clean)
-        if clean:
-            parts.append(clean)
+    if date:
+        parts.append(_year_month(date))
 
     type_part = document_type if document_type else original_stem
-    clean_type = FORBIDDEN_CHARS.sub("", type_part).strip()
-    clean_type = MULTI_SPACE.sub(" ", clean_type)
-    if clean_type:
-        parts.append(clean_type)
+    slug_type = _slugify(type_part)
+    if slug_type:
+        parts.append(slug_type)
 
-    stem = " - ".join(parts)
+    if sender:
+        slug_sender = _slugify(sender)[:MAX_SENDER_LEN].rstrip("-")
+        if slug_sender:
+            parts.append(slug_sender)
+
+    stem = "_".join(parts) or _slugify(original_stem) or "dokument"
     stem = stem[:200 - len(extension)]
     return stem + extension
 
