@@ -66,15 +66,25 @@ def _arrow_select(title: str, options: list[tuple[str, str]]) -> str:
 
 def _path_prompt(label: str, default: str) -> Path:
     """Inline path prompt with directory tab-completion. Pre-fill ends with / to show contents immediately."""
-    from prompt_toolkit import prompt
+    from prompt_toolkit import PromptSession
     from prompt_toolkit.completion import PathCompleter
+    from prompt_toolkit.key_binding import KeyBindings
 
-    value = prompt(
-        f"{label}: ",
-        default=default,
+    kb = KeyBindings()
+
+    @kb.add("backspace")
+    def _backspace(event):
+        buf = event.current_buffer
+        buf.delete_before_cursor()
+        if buf.text.endswith("/") or not buf.text:
+            buf.start_completion(select_first=False)
+
+    session = PromptSession(
         completer=PathCompleter(only_directories=True, expanduser=True),
         complete_while_typing=True,
+        key_bindings=kb,
     )
+    value = session.prompt(f"{label}: ", default=default)
     return Path(value).expanduser().resolve()
 
 
