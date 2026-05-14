@@ -84,6 +84,7 @@ def scan(
     limit: int | None = typer.Option(None, "--limit"),
     verbose: bool = typer.Option(False, "--verbose"),
     quiet: bool = typer.Option(False, "--quiet"),
+    output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
 ) -> None:
     """Scan and classify documents. Writes a reviewable plan. Never moves files."""
     import time
@@ -212,6 +213,9 @@ def scan(
                     counts["classified"] += 1
 
             except ConnectionError as e:
+                if output_format == "jsonl":
+                    import json as _json
+                    print(_json.dumps({"event": "error", "message": str(e)}), flush=True)
                 console.print(f"\n[red]{e}[/red]")
                 raise typer.Exit(1)
             except Exception as e:
@@ -257,6 +261,29 @@ def scan(
                 model=model,
                 error=error_msg,
             ))
+
+            if output_format == "jsonl":
+                import json as _json
+                print(_json.dumps({
+                    "event": "progress",
+                    "file": meta.filename,
+                    "status": "classified" if status == "planned" else status,
+                    "classified": counts["classified"],
+                    "review": counts["review"],
+                    "errors": counts["errors"],
+                    "total": None,
+                }), flush=True)
+
+    if output_format == "jsonl":
+        import json as _json
+        print(_json.dumps({
+            "event": "done",
+            "plan": str(plan_path),
+            "undo": None,
+            "classified": counts["classified"],
+            "review": counts["review"],
+            "errors": counts["errors"],
+        }), flush=True)
 
     elapsed = time.time() - start_time
     if not quiet:
@@ -335,6 +362,7 @@ def run_pipeline(
         limit=limit,
         verbose=verbose,
         quiet=quiet,
+        output_format="text",
     )
 
     result = apply_plan(
