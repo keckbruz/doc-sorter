@@ -78,3 +78,28 @@ def test_suggest_taxonomy_merges_output_folder_as_existing(tmp_path):
 
     assert "Finanzen" in captured_existing
     assert "Steuern" in captured_existing["Finanzen"]
+
+
+def test_suggest_taxonomy_returns_empty_on_llm_error(tmp_path):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    (input_dir / "doc.txt").write_text("some document")
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    with patch("doc_cleaner.cli._ensure_ollama"), \
+         patch("doc_cleaner.classifier.ollama.OllamaClient") as mock_cls:
+        mock_client = MagicMock()
+        mock_client.suggest_taxonomy.side_effect = RuntimeError("LLM timeout")
+        mock_cls.return_value = mock_client
+
+        result = runner.invoke(app, [
+            "suggest-taxonomy",
+            "--input", str(input_dir),
+            "--output-root", str(output_dir),
+        ])
+
+    assert result.exit_code == 0
+    # The warning goes to stderr (mixed into output by CliRunner); the last line is JSON
+    json_line = result.output.strip().splitlines()[-1]
+    assert json.loads(json_line) == {}

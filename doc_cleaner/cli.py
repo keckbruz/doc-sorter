@@ -521,14 +521,18 @@ def suggest_taxonomy_cmd(
         files.append((meta.filename, peek))
 
     base_tax_path = Path(__file__).parent.parent / "taxonomy.yaml"
-    base_tax = load_taxonomy(base_tax_path)
+    try:
+        base_tax = load_taxonomy(base_tax_path)
+    except FileNotFoundError:
+        base_tax = {}
     folder_tax = read_output_taxonomy(resolved_output)
     existing = merge_taxonomies(base_tax, folder_tax)
 
     try:
         client = OllamaClient(host=ollama_host, model=model, allow_remote=allow_remote_ollama)
         additions = client.suggest_taxonomy(files, existing=existing)
-    except Exception:
+    except Exception as e:
+        console.print(f"[yellow]Warning: taxonomy suggestion failed ({e}), returning empty result[/yellow]")
         additions = {}
 
     print(json.dumps(additions, ensure_ascii=False))
