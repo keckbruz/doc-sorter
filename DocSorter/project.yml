@@ -1,0 +1,40 @@
+name: DocSorter
+options:
+  bundleIdPrefix: com.docsorter
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.4"
+  createIntermediateGroups: true
+
+targets:
+  DocSorter:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: DocSorter
+        type: group
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.docsorter.DocSorter
+        INFOPLIST_FILE: DocSorter/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+    entitlements:
+      path: DocSorter/DocSorter.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.files.bookmarks.app-scope: true
+
+schemes:
+  DocSorter:
+    build:
+      targets:
+        DocSorter: all
+    run:
+      config: Debug
+    archive:
+      config: Release
