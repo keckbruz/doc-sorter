@@ -10,6 +10,7 @@ build/
 .venv/
 venv/
 doc_sorter.log
-plans/
+/plans/
 sorted/
 **/.DS_Store
+.superpowers/
