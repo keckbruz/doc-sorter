@@ -81,6 +81,31 @@ FAKE_DOCS = [
     ("deeply/nested/subfolder/deep_document.txt",
      "Dieses Dokument liegt tief in einer Ordnerstruktur.\nDatum: 01.01.2024\nAussteller: Tief GmbH",
      "txt"),
+
+    # New: categories not well-covered by the base taxonomy
+    ("new_categories/flug_buchungsbestaetigung.pdf",
+     "Lufthansa AG\nBuchungsbestaetigung\nBuchungsnummer: LH-2024-789456\nDatum: 10.04.2024\n\nFlug: Muenchen (MUC) nach Barcelona (BCN)\nHinflug: 15.06.2024, Abflug 07:30, Ankunft 09:45\nRueckflug: 22.06.2024, Abflug 18:20, Ankunft 20:35\n\nPassagier: Max Mustermann\nTicketklasse: Economy\nGesamt: 289,00 EUR",
+     "pdf"),
+
+    ("new_categories/fitnessstudio_vertrag.pdf",
+     "FitnessPro GmbH\nMitgliedsvertrag\nMitgliedsnummer: FP-2024-00345\nDatum: 01.02.2024\n\nMitglied: Max Mustermann\nMitgliedschaft: Premium 12 Monate\nMonatsbeitrag: 39,90 EUR\nLaufzeit: 01.02.2024 – 31.01.2025\nKündigungsfrist: 4 Wochen zum Monatsende\n\nInkl. Sauna, Kurse, Parkplatz",
+     "pdf"),
+
+    ("new_categories/schufa_auskunft.pdf",
+     "SCHUFA Holding AG\nBonitätsauskunft\nAnfragedatum: 03.03.2024\n\nAuskunft für: Max Mustermann\nGeburtsdatum: 01.01.1990\n\nScore-Wert: 97,4 %\nRisikoklasse: Sehr geringes Risiko\n\nGespeicherte Einträge: 3 Kreditkonten, alle vertragsgemäß bedient.\nNegative Einträge: keine",
+     "pdf"),
+
+    ("new_categories/tierarzt_rechnung.pdf",
+     "Tierarztpraxis Dr. Schneider\nRechnung Nr. 2024-0412\nDatum: 12.04.2024\n\nTierhalter: Max Mustermann\nTier: Bello, Labrador, männlich, geb. 2019\n\nLeistungen:\n- Jahresimpfung (Kombi): 45,00 EUR\n- Wurmkur: 18,50 EUR\n- Untersuchung: 35,00 EUR\n\nGesamtbetrag: 98,50 EUR",
+     "pdf"),
+
+    ("new_categories/handwerker_rechnung.txt",
+     "Klempner Meister Bauer\nRechnung vom 20.03.2024\n\nAuftrag: Reparatur Wasserleitung\nAnschrift: Musterstr. 1, 80333 München\n\nArbeitszeit: 3 Stunden à 85,00 EUR = 255,00 EUR\nMaterial: Rohre und Dichtungen = 42,80 EUR\nNetto: 297,80 EUR\nMwSt. 19%: 56,58 EUR\nBrutto: 354,38 EUR",
+     "txt"),
+
+    ("new_categories/vereinsbeitrag_tsc.txt",
+     "TSC München e.V.\nMitgliedsbestätigung und Beitragsrechnung 2024\n\nMitglied: Max Mustermann\nMitgliedsnummer: 4872\nSparte: Tennis\n\nJahresbeitrag 2024: 180,00 EUR\nFällig: 31.01.2024\n\nBitte überweisen Sie den Betrag auf unser Vereinskonto:\nIBAN: DE44 7005 0000 0012 3456 78\nVerwendungszweck: Mitglied 4872 / 2024",
+     "txt"),
 ]
 
 
@@ -89,6 +114,11 @@ def make_pdf(output_path: Path, content: str) -> None:
         from fpdf import FPDF
     except ImportError:
         raise ImportError("fpdf2 required: pip install fpdf2")
+    # Helvetica only supports latin-1; replace common non-latin-1 chars
+    content = (content
+               .replace("–", "-").replace("—", "-")
+               .replace("’", "'").replace("“", '"').replace("”", '"')
+               .replace("•", "-").replace("→", "->").replace("←", "<-"))
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=11)

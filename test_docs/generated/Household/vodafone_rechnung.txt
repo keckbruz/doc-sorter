@@ -1,0 +1,12 @@
+Vodafone GmbH
+Kundennummer: 0987654321
+
+Rechnung vom 01.04.2024
+Rechnungsnummer: VF-2024-03-001
+
+Internetflatrate (100 Mbit/s): 29,99 EUR
+Telefonflat: 0,00 EUR
+Gesamtbetrag: 29,99 EUR
+
+Fällig: 15.04.2024
+SEPA-Lastschrift von IBAN DE12 ...
