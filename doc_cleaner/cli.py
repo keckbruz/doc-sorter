@@ -121,10 +121,10 @@ def scan(
     plan_path = plan or Path(f"plans/plan-{ts}.csv")
     jsonl_path = jsonl or Path(f"plans/plan-{ts}.jsonl")
 
-    # Cache dir
-    cache_path = cache_dir or Path(".doc-sorter-cache")
+    # Cache dir — absolute path anchored to repo root so CWD doesn't matter
+    cache_path = cache_dir or (Path(__file__).parent.parent / ".doc-sorter-cache")
 
-    setup_logging(Path("doc_sorter.log"), verbose=verbose)
+    setup_logging(Path("/tmp/doc_sorter.log"), verbose=verbose)
 
     try:
         ollama = OllamaClient(
@@ -153,7 +153,7 @@ def scan(
             max_files=effective_limit,
         ):
             counts["scanned"] += 1
-            if not quiet:
+            if not quiet and output_format != "jsonl":
                 console.print(f"  [dim]{meta.relative_path}[/dim]", end="\r")
 
             error_msg = ""
@@ -489,6 +489,7 @@ def suggest_taxonomy_cmd(
     ollama_host: str = typer.Option("http://127.0.0.1:11434", "--ollama-host"),
     allow_remote_ollama: bool = typer.Option(False, "--allow-remote-ollama"),
     max_text_chars: int = typer.Option(300, "--max-text-chars"),
+    output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
 ) -> None:
     """Suggest taxonomy additions for a folder of documents. Prints JSON to stdout."""
     import json
@@ -508,17 +509,23 @@ def suggest_taxonomy_cmd(
 
     all_meta = list(scan_files(resolved_input, max_files=300))
     if not all_meta:
-        print(json.dumps({}))
+        if output_format == "jsonl":
+            print(json.dumps({"event": "taxonomy", "additions": {}}), flush=True)
+        else:
+            print(json.dumps({}))
         return
 
+    total = len(all_meta)
     files: list[tuple[str, str]] = []
-    for meta in all_meta:
+    for i, meta in enumerate(all_meta):
         try:
             result = extract_text(meta, max_chars=max_text_chars, ocr=False)
             peek = result.text.strip()
         except Exception:
             peek = ""
         files.append((meta.filename, peek))
+        if output_format == "jsonl":
+            print(json.dumps({"event": "peek", "file": meta.filename, "done": i + 1, "total": total}), flush=True)
 
     base_tax_path = Path(__file__).parent.parent / "taxonomy.yaml"
     try:
@@ -535,7 +542,10 @@ def suggest_taxonomy_cmd(
         console.print(f"[yellow]Warning: taxonomy suggestion failed ({e}), returning empty result[/yellow]")
         additions = {}
 
-    print(json.dumps(additions, ensure_ascii=False))
+    if output_format == "jsonl":
+        print(json.dumps({"event": "taxonomy", "additions": additions}), flush=True)
+    else:
+        print(json.dumps(additions, ensure_ascii=False))
 
 
 @app.command()

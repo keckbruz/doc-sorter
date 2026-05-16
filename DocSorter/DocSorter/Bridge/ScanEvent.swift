@@ -1,5 +1,26 @@
 import Foundation
 
+// MARK: - Taxonomy streaming events
+
+struct PeekEvent: Codable {
+    let event: String
+    let file: String
+    let done: Int
+    let total: Int
+}
+
+struct TaxonomyResultEvent: Codable {
+    let event: String
+    let additions: [String: [String]]
+}
+
+enum TaxonomySuggestionEvent {
+    case peek(PeekEvent)
+    case result(TaxonomyResultEvent)
+}
+
+// MARK: - Scan streaming events
+
 struct ProgressEvent: Codable {
     let event: String
     let file: String

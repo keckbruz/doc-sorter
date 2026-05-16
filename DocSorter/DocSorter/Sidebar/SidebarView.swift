@@ -14,7 +14,7 @@ extension Color {
     }
 }
 
-// MARK: - Button styles (shared across MainPane views)
+// MARK: - Button styles (shared across views)
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -23,7 +23,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(Color(hex: "#3a8fff"))
+            .background(Color.accentColor)
             .cornerRadius(6)
             .opacity(configuration.isPressed ? 0.8 : 1)
     }
@@ -42,120 +42,134 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - SidebarView
+// MARK: - SetupView
 
-struct SidebarView: View {
+struct SetupView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var settings: Settings
     @StateObject private var viewModel = SidebarViewModel()
 
-    private var isScanning: Bool {
-        switch appState.phase {
-        case .preparing, .scanning: return true
-        default: return false
-        }
+    private var canScan: Bool {
+        !settings.lastInputPath.isEmpty && settings.outputURL != nil
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("DOC SORTER")
-                .font(.custom("SF Mono", size: 10))
-                .foregroundColor(Color(hex: "#555555"))
-                .padding(.top, 16)
+        ZStack {
+            Color(hex: "#0d0d0d").ignoresSafeArea()
 
-            folderRow(label: "INPUT", path: settings.lastInputPath) {
-                viewModel.pickFolder { url in
-                    settings.lastInputPath = url.path
-                }
-            }
-
-            folderRow(
-                label: "OUTPUT",
-                path: settings.outputURL?.path ?? ""
-            ) {
-                viewModel.pickFolder { url in
-                    settings.setOutputURL(url)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                sidebarLabel("MODEL")
-                TextField("qwen3.5:9b", text: $settings.modelName)
-                    .textFieldStyle(.plain)
-                    .font(.custom("SF Mono", size: 12))
+            VStack(alignment: .leading, spacing: 20) {
+                Text("DOC SORTER")
+                    .font(.custom("SF Mono", size: 18).bold())
                     .foregroundColor(.white)
-                    .padding(6)
-                    .background(Color(hex: "#111111"))
-                    .cornerRadius(4)
-            }
+                    .padding(.bottom, 8)
 
-            VStack(alignment: .leading, spacing: 4) {
-                sidebarLabel("CONFIDENCE")
-                HStack {
-                    Text("\(settings.confidenceThreshold)%")
-                        .font(.custom("SF Mono", size: 12))
-                        .foregroundColor(.white)
-                        .frame(width: 42, alignment: .leading)
-                    Stepper("", value: $settings.confidenceThreshold, in: 0...100)
-                        .labelsHidden()
+                folderRow(label: "INPUT", path: settings.lastInputPath) {
+                    viewModel.pickFolder { url in
+                        settings.lastInputPath = url.path
+                    }
                 }
-            }
 
-            Spacer()
+                folderRow(label: "OUTPUT", path: settings.outputURL?.path ?? "") {
+                    viewModel.pickFolder { url in
+                        settings.setOutputURL(url)
+                    }
+                }
 
-            if let error = viewModel.errorMessage {
-                Text(error)
-                    .font(.custom("SF Mono", size: 10))
-                    .foregroundColor(Color(hex: "#f85149"))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        fieldLabel("CONFIDENCE")
+                        Picker("", selection: $settings.confidenceThreshold) {
+                            ForEach([50, 60, 70, 75, 80, 85, 90, 95], id: \.self) { value in
+                                Text("\(value)%").tag(value)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .font(.custom("SF Mono", size: 12))
+                    }
 
-            Button(action: startScan) {
-                Text("SCAN")
-                    .font(.custom("SF Mono", size: 13).bold())
+                    VStack(alignment: .leading, spacing: 4) {
+                        fieldLabel("MODEL")
+                        TextField("qwen3:8b", text: $settings.modelName)
+                            .textFieldStyle(.plain)
+                            .font(.custom("SF Mono", size: 11))
+                            .foregroundColor(Color(hex: "#666666"))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: "#0f0f0f"))
+                            .cornerRadius(4)
+                            .overlay(RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color(hex: "#222222"), lineWidth: 1))
+                    }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(isScanning ? Color(hex: "#1a1a1a") : Color(hex: "#3a8fff"))
-                    .foregroundColor(isScanning ? Color(hex: "#555555") : .white)
-                    .cornerRadius(6)
+                }
+
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .font(.custom("SF Mono", size: 11))
+                        .foregroundColor(Color(hex: "#f85149"))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(action: startScan) {
+                    Text("SCAN")
+                        .font(.custom("SF Mono", size: 13).bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(canScan ? Color.accentColor : Color(hex: "#1a1a1a"))
+                        .foregroundColor(canScan ? .white : Color(hex: "#555555"))
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canScan)
+                .keyboardShortcut(.return, modifiers: .command)
+                .padding(.top, 4)
             }
-            .buttonStyle(.plain)
-            .disabled(isScanning)
-            .padding(.bottom, 16)
+            .frame(width: 360)
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(hex: "#0d0d0d"))
+        .onAppear {
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
     }
 
     // MARK: - Subviews
 
     private func folderRow(label: String, path: String, action: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            sidebarLabel(label)
+            fieldLabel(label)
             Button(action: action) {
-                HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: path.isEmpty ? "folder.badge.plus" : "folder.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(path.isEmpty ? Color(hex: "#555555") : Color.accentColor)
                     Text(path.isEmpty
-                         ? "Choose…"
+                         ? "Choose folder…"
                          : URL(fileURLWithPath: path).lastPathComponent)
-                        .font(.custom("SF Mono", size: 11))
-                        .foregroundColor(path.isEmpty ? Color(hex: "#555555") : .white)
+                        .font(.custom("SF Mono", size: 12))
+                        .foregroundColor(path.isEmpty ? Color(hex: "#666666") : .white)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer()
-                    Image(systemName: "folder")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color(hex: "#3a8fff"))
                 }
-                .padding(6)
-                .background(Color(hex: "#111111"))
-                .cornerRadius(4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(Color(hex: "#161616"))
+                .cornerRadius(5)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(
+                            path.isEmpty ? Color(hex: "#2a2a2a") : Color.accentColor.opacity(0.4),
+                            lineWidth: 1
+                        )
+                )
             }
             .buttonStyle(.plain)
         }
     }
 
-    private func sidebarLabel(_ text: String) -> some View {
+    private func fieldLabel(_ text: String) -> some View {
         Text(text)
             .font(.custom("SF Mono", size: 9))
             .foregroundColor(Color(hex: "#555555"))
@@ -174,9 +188,7 @@ struct SidebarView: View {
         appState.reset()
         appState.startPreparing()
 
-        Task {
-            await runScanWorkflow()
-        }
+        Task { await runScanWorkflow() }
     }
 
     private func runScanWorkflow() async {
@@ -184,20 +196,26 @@ struct SidebarView: View {
         guard let outputURL = settings.outputURL else { return }
         let outputPath = outputURL.path
 
-        // Step 1: count files (fast, local I/O)
         let count = viewModel.countFiles(at: URL(fileURLWithPath: inputPath))
         await MainActor.run { appState.updateFileCount(count) }
 
-        // Step 2: suggest taxonomy (LLM call)
         do {
-            let additions = try await PythonBridge.shared.suggestTaxonomy(
+            var additions: [String: [String]] = [:]
+            let stream = PythonBridge.shared.suggestTaxonomy(
                 inputPath: inputPath,
                 outputPath: outputPath,
                 model: settings.modelName
             )
+            for try await event in stream {
+                switch event {
+                case .peek(let e):
+                    await MainActor.run { appState.updatePeek(done: e.done, total: e.total) }
+                case .result(let e):
+                    additions = e.additions
+                }
+            }
             await MainActor.run { appState.showTaxonomySuggestion(additions) }
 
-            // If non-empty suggestions: wait for user to confirm in TaxonomySuggestionView
             if !additions.isEmpty {
                 await waitForTaxonomyConfirmation()
             }
@@ -212,8 +230,7 @@ struct SidebarView: View {
     }
 
     private func waitForTaxonomyConfirmation() async {
-        // Poll until TaxonomySuggestionView sets appState.taxonomyConfirmed via confirmTaxonomy()
-        while await !appState.taxonomyConfirmed {
+        while !appState.taxonomyConfirmed {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
     }
@@ -222,8 +239,7 @@ struct SidebarView: View {
         let inputPath = settings.lastInputPath
         guard let outputURL = settings.outputURL else { return }
         let outputPath = outputURL.path
-        let planPath = outputURL
-            .appendingPathComponent(".doc-sorter-plan.csv").path
+        let planPath = outputURL.appendingPathComponent(".doc-sorter-plan.csv").path
 
         let stream = PythonBridge.shared.scan(
             inputPath: inputPath,
@@ -238,7 +254,9 @@ struct SidebarView: View {
                 await MainActor.run {
                     switch event {
                     case .progress(let e):
-                        appState.updateScan(event: e)
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            appState.updateScan(event: e)
+                        }
                     case .done(let e):
                         appState.finishScan(event: e)
                     case .error(let e):
@@ -247,9 +265,7 @@ struct SidebarView: View {
                 }
             }
         } catch {
-            await MainActor.run {
-                appState.showError(error.localizedDescription)
-            }
+            await MainActor.run { appState.showError(error.localizedDescription) }
         }
     }
 }

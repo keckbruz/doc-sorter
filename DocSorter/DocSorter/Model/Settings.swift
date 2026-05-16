@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class Settings: ObservableObject {
-    @AppStorage("modelName") var modelName: String = "qwen3.5:9b"
+    @AppStorage("modelName") var modelName: String = "qwen3:8b"
     @AppStorage("confidenceThreshold") var confidenceThreshold: Int = 90
     @AppStorage("lastInputPath") var lastInputPath: String = ""
 

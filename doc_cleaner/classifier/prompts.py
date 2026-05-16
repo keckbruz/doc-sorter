@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from doc_cleaner.scanner import FileMetadata
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v3"
 
 _DATE_RE = re.compile(r'\d{1,2}[.\/\-]\d{1,2}[.\/\-]\d{2,4}|\d{4}[.\/\-]\d{2}[.\/\-]\d{2}')
 _KEYWORD_RE = re.compile(
@@ -60,6 +60,7 @@ def build_prompt(
     modified_iso = datetime.fromtimestamp(meta.modified_time).strftime("%Y-%m-%d")
 
     return f"""You are a document classifier. Classify the following document.
+Respond in German. Use German for document_type, reason, and suggested_filename.
 
 ALLOWED CATEGORIES AND SUBCATEGORIES:
 {categories_str}
@@ -83,6 +84,7 @@ INSTRUCTIONS:
 - If the sender is unknown, set sender to null.
 - confidence must be an integer 0-100.
 - Set needs_review to true if confidence < 80 or if category is "Review".
+- document_type must be specific, not generic. Include the product, subject, or topic when the type alone would be ambiguous. Prefer "FritzBox-7590-Benutzerhandbuch" over "Benutzerhandbuch", "Mietvertrag-Hauptstrasse-12" over "Mietvertrag".
 - Return valid JSON only. Do not include markdown. Do not include explanations outside the JSON object.
 
 Return exactly this JSON structure:

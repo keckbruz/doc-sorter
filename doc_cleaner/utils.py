@@ -4,16 +4,18 @@ import shutil
 import hashlib
 from pathlib import Path
 
-FORBIDDEN_CHARS = re.compile(r'[:/\\*?"<>|]')
+FORBIDDEN_CHARS = re.compile(r'[:/\\*?"<>|.\',!;@#$%^&()+=\[\]{}]')
 WHITESPACE = re.compile(r'\s+')
+MULTI_HYPHEN = re.compile(r'-{2,}')
 _YEAR_MONTH_RE = re.compile(r'^(\d{4})-(\d{2})')
 MAX_SENDER_LEN = 25
 
 
 def _slugify(text: str) -> str:
-    """Lowercase, strip forbidden chars, collapse whitespace to hyphens."""
+    """Lowercase, strip punctuation, collapse whitespace/hyphens."""
     clean = FORBIDDEN_CHARS.sub("", text).strip()
-    return WHITESPACE.sub("-", clean).lower()
+    slug = WHITESPACE.sub("-", clean).lower()
+    return MULTI_HYPHEN.sub("-", slug).strip("-")
 
 
 def _year_month(date: str) -> str:

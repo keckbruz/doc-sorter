@@ -37,12 +37,22 @@ final class AppState: ObservableObject {
     @Published var undoPath: String?
     @Published var taxonomyConfirmed: Bool = false
 
+    var preScanFileCount: Int = 0
+    @Published var peekDone: Int = 0
+    @Published var peekTotal: Int = 0
+
     func startPreparing() {
         phase = .preparing(fileCount: nil, isSuggestingTaxonomy: false)
     }
 
     func updateFileCount(_ count: Int) {
+        preScanFileCount = count
         phase = .preparing(fileCount: count, isSuggestingTaxonomy: true)
+    }
+
+    func updatePeek(done: Int, total: Int) {
+        peekDone = done
+        peekTotal = total
     }
 
     func showTaxonomySuggestion(_ additions: [String: [String]]) {
@@ -63,11 +73,12 @@ final class AppState: ObservableObject {
     }
 
     func updateScan(event: ProgressEvent) {
+        let total = event.total ?? (peekTotal > 0 ? peekTotal : preScanFileCount)
         phase = .scanning(
             classified: event.classified,
             review: event.review,
             errors: event.errors,
-            total: 0,
+            total: total,
             currentFile: event.file
         )
     }
@@ -94,6 +105,9 @@ final class AppState: ObservableObject {
         planPath = nil
         undoPath = nil
         taxonomyConfirmed = false
+        peekDone = 0
+        peekTotal = 0
+        preScanFileCount = 0
     }
 
     // MARK: - CSV Loading
@@ -123,6 +137,43 @@ final class AppState: ObservableObject {
                 sourcePath: cols[2]
             )
         }
+    }
+
+    // MARK: - CSV Write-back
+
+    func writePlanEdits(toPlanCSV path: String) {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let lines = content.components(separatedBy: "\n")
+        guard lines.count > 1 else { return }
+
+        let header = lines[0]
+        var updated = [header]
+
+        // Build a lookup: sourcePath → ReviewRow
+        let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.sourcePath, $0) })
+
+        for line in lines.dropFirst() {
+            guard !line.isEmpty else { continue }
+            var cols = parseCSVLine(line)
+            guard cols.count >= 13 else { updated.append(line); continue }
+
+            if let row = lookup[cols[2]] {
+                cols[0] = row.isSelected ? "true" : "false"
+                cols[4] = row.category
+                cols[5] = row.subcategory
+                cols[9] = row.suggestedFilename
+            }
+            updated.append(cols.map { csvEscape($0) }.joined(separator: ","))
+        }
+
+        try? updated.joined(separator: "\n").write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    private func csvEscape(_ value: String) -> String {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+            return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        return value
     }
 
     private func parseCSVLine(_ line: String) -> [String] {

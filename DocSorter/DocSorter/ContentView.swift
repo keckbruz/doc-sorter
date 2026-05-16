@@ -5,16 +5,23 @@ struct ContentView: View {
     @StateObject private var settings = Settings()
 
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
-            SidebarView()
-                .environmentObject(appState)
-                .environmentObject(settings)
-                .navigationSplitViewColumnWidth(220)
-        } detail: {
-            MainPaneView()
-                .environmentObject(appState)
-                .environmentObject(settings)
+        ZStack {
+            if appState.phase == .idle {
+                SetupView()
+                    .environmentObject(appState)
+                    .environmentObject(settings)
+                    .transition(.opacity)
+                    .zIndex(1)
+            } else {
+                MainPaneView()
+                    .environmentObject(appState)
+                    .environmentObject(settings)
+                    .transition(.opacity)
+                    .zIndex(0)
+            }
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .animation(.easeInOut(duration: 0.2), value: appState.phase == .idle)
+        .frame(minWidth: 680, minHeight: 480)
+        .preferredColorScheme(.dark)
     }
 }

@@ -8,9 +8,10 @@ struct MainPaneView: View {
         Group {
             switch appState.phase {
             case .idle:
-                IdleView()
+                EmptyView()
             case .preparing(let count, let isSuggesting):
                 PreparingView(fileCount: count, isSuggestingTaxonomy: isSuggesting)
+                    .environmentObject(appState)
             case .taxonomySuggestion(let additions):
                 TaxonomySuggestionView(additions: additions)
                     .environmentObject(appState)
@@ -34,7 +35,7 @@ struct MainPaneView: View {
                     .environmentObject(appState)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(hex: "#0d0d0d"))
     }
 }

@@ -7,8 +7,8 @@ struct DetailPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(row.aiReason.isEmpty ? "No reasoning provided." : row.aiReason)
-                .font(.custom("SF Mono", size: 11).italic())
-                .foregroundColor(Color(hex: "#555555"))
+                .font(.system(size: 12).italic())
+                .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {

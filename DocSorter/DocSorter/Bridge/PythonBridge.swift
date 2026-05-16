@@ -30,58 +30,90 @@ final class PythonBridge {
 
     private func python3Path() throws -> String {
         let candidates = [
-            "/usr/bin/python3",
-            "/usr/local/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
             "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+            "/usr/bin/python3",
         ]
         for path in candidates {
             if FileManager.default.fileExists(atPath: path) { return path }
         }
-        // Try `which python3`
+        // Try resolving via login shell so user's PATH is honoured
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let which = Process()
-        which.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        which.arguments = ["python3"]
+        which.executableURL = URL(fileURLWithPath: shell)
+        which.arguments = ["-lc", "which python3"]
         let pipe = Pipe()
         which.standardOutput = pipe
         which.standardError = Pipe()
-        try which.run()
+        try? which.run()
         which.waitUntilExit()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let path = String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !path.isEmpty { return path }
+        if !path.isEmpty && FileManager.default.fileExists(atPath: path) { return path }
         throw BridgeError.pythonNotFound
     }
 
-    // MARK: - suggest-taxonomy
+    // MARK: - suggest-taxonomy (streaming)
 
     func suggestTaxonomy(
         inputPath: String,
         outputPath: String,
         model: String
-    ) async throws -> [String: [String]] {
-        let python = try python3Path()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: python)
-        process.arguments = [
-            "-m", "doc_cleaner",
-            "suggest-taxonomy",
-            "--input", inputPath,
-            "--output-root", outputPath,
-            "--model", model,
-        ]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
+    ) -> AsyncThrowingStream<TaxonomySuggestionEvent, Error> {
+        AsyncThrowingStream { continuation in
+            DispatchQueue(label: "com.docsorter.taxonomy").async {
+                do {
+                    let python = try self.python3Path()
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: python)
+                    process.arguments = [
+                        "-u", "-m", "doc_cleaner",
+                        "suggest-taxonomy",
+                        "--input", inputPath,
+                        "--output-root", outputPath,
+                        "--model", model,
+                        "--output-format", "jsonl",
+                    ]
+                    let stdout = Pipe()
+                    let stderr = Pipe()
+                    process.standardOutput = stdout
+                    process.standardError = stderr
+                    try process.run()
 
-        try process.run()
-        process.waitUntilExit()
+                    let handle = stdout.fileHandleForReading
+                    var buffer = Data()
+                    while true {
+                        let chunk = handle.availableData
+                        if chunk.isEmpty { break }
+                        buffer.append(chunk)
+                        while let nlIdx = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                            let lineData = Data(buffer[buffer.startIndex..<nlIdx])
+                            buffer.removeSubrange(buffer.startIndex...nlIdx)
+                            guard let event = Self.decodeTaxonomyEvent(lineData) else { continue }
+                            continuation.yield(event)
+                        }
+                    }
 
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        guard !data.isEmpty,
-              let result = try? JSONDecoder().decode([String: [String]].self, from: data)
-        else { return [:] }
-        return result
+                    process.waitUntilExit()
+                    if process.terminationStatus != 0 {
+                        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                        let msg = String(data: errData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            ?? "exit code \(process.terminationStatus)"
+                        continuation.finish(throwing: BridgeError.processError("Taxonomy failed: \(msg)"))
+                    } else {
+                        continuation.finish()
+                    }
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
     }
 
     // MARK: - scan (JSONL stream)
@@ -95,62 +127,77 @@ final class PythonBridge {
         ollamaHost: String = "http://127.0.0.1:11434"
     ) -> AsyncThrowingStream<ScanEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task.detached { [weak self] in
-                guard let self else { continuation.finish(); return }
+            DispatchQueue(label: "com.docsorter.scan").async {
                 do {
                     let python = try self.python3Path()
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: python)
+                    let jsonlPath = planPath.replacingOccurrences(of: ".csv", with: ".jsonl")
                     process.arguments = [
-                        "-m", "doc_cleaner", "scan",
+                        "-u", "-m", "doc_cleaner", "scan",
                         "--input", inputPath,
                         "--output-root", outputPath,
                         "--plan", planPath,
+                        "--jsonl", jsonlPath,
                         "--model", model,
-                        "--confidence", String(confidenceThreshold),
+                        "--confidence-threshold", String(confidenceThreshold),
                         "--ollama-host", ollamaHost,
                         "--output-format", "jsonl",
                     ]
                     let stdout = Pipe()
+                    let stderr = Pipe()
                     process.standardOutput = stdout
-                    process.standardError = Pipe()
+                    process.standardError = stderr
 
-                    try process.run()
-
-                    let handle = stdout.fileHandleForReading
-                    var buffer = Data()
-                    var finished = false
-
-                    while !finished {
-                        let chunk = handle.availableData
-                        if chunk.isEmpty {
-                            if !process.isRunning { finished = true }
-                            try? await Task.sleep(nanoseconds: 50_000_000)
-                            continue
-                        }
-                        buffer.append(chunk)
-                        while let newlineIdx = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                            let lineData = buffer[buffer.startIndex...newlineIdx]
-                            buffer.removeSubrange(buffer.startIndex...newlineIdx)
-                            if let event = Self.decodeEvent(lineData) {
-                                continuation.yield(event)
-                                if case .done = event { finished = true }
-                                if case .error = event { finished = true }
+                    let log = URL(fileURLWithPath: "/tmp/docsorter-scan.log")
+                    func logLine(_ s: String) {
+                        let line = s + "\n"
+                        if let data = line.data(using: .utf8) {
+                            if let handle = try? FileHandle(forWritingTo: log) {
+                                handle.seekToEndOfFile(); handle.write(data); handle.closeFile()
+                            } else {
+                                try? data.write(to: log)
                             }
                         }
                     }
+                    try? "".write(to: log, atomically: true, encoding: .utf8)  // reset log
+                    logLine("python: \(python)")
+                    logLine("args: \(process.arguments ?? [])")
 
-                    // Drain remaining buffer
-                    let remaining = handle.readDataToEndOfFile()
-                    buffer.append(remaining)
-                    for lineSlice in buffer.split(separator: UInt8(ascii: "\n")) {
-                        if let event = Self.decodeEvent(Data(lineSlice)) {
+                    try process.run()
+                    logLine("process started, pid=\(process.processIdentifier)")
+
+                    // availableData blocks until data arrives or EOF — safe on a background thread
+                    let handle = stdout.fileHandleForReading
+                    var buffer = Data()
+                    var lineCount = 0
+                    while true {
+                        let chunk = handle.availableData
+                        if chunk.isEmpty { break }  // EOF: process closed its stdout
+                        buffer.append(chunk)
+                        while let nlIdx = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                            let lineData = Data(buffer[buffer.startIndex..<nlIdx])
+                            buffer.removeSubrange(buffer.startIndex...nlIdx)
+                            lineCount += 1
+                            logLine("line \(lineCount): \(String(data: lineData, encoding: .utf8) ?? "<binary>")")
+                            guard let event = Self.decodeEvent(lineData) else { continue }
                             continuation.yield(event)
                         }
                     }
 
                     process.waitUntilExit()
-                    continuation.finish()
+                    logLine("exit code: \(process.terminationStatus), lines received: \(lineCount)")
+
+                    if process.terminationStatus != 0 {
+                        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                        let msg = String(data: errData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            ?? "exit code \(process.terminationStatus)"
+                        logLine("stderr: \(msg)")
+                        continuation.finish(throwing: BridgeError.processError("Scan failed: \(msg)"))
+                    } else {
+                        continuation.finish()
+                    }
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -160,14 +207,20 @@ final class PythonBridge {
 
     // MARK: - apply
 
-    func apply(planPath: String, outputPath: String) async throws -> ApplyResult {
+    func apply(planPath: String) async throws -> ApplyResult {
         let python = try python3Path()
+
+        let undoPath = planPath
+            .replacingOccurrences(of: ".csv", with: "")
+            + "-undo-\(Int(Date().timeIntervalSince1970)).json"
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: python)
         process.arguments = [
             "-m", "doc_cleaner", "apply",
             "--plan", planPath,
-            "--output-root", outputPath,
+            "--undo", undoPath,
+            "--yes",
         ]
         let stdout = Pipe()
         let stderr = Pipe()
@@ -189,18 +242,11 @@ final class PythonBridge {
             encoding: .utf8
         ) ?? ""
 
-        let undoPath = out.components(separatedBy: "\n")
-            .first { $0.contains("Undo manifest:") }
-            .flatMap { line -> String? in
-                let parts = line.components(separatedBy: "Undo manifest:")
-                return parts.last?.trimmingCharacters(in: .whitespaces)
-            }
-
         return ApplyResult(
             moved: Self.parseCount(out, keyword: "Moved:"),
             skipped: Self.parseCount(out, keyword: "Skipped:"),
             errors: Self.parseCount(out, keyword: "Errors:"),
-            undoPath: undoPath
+            undoPath: FileManager.default.fileExists(atPath: undoPath) ? undoPath : nil
         )
     }
 
@@ -230,6 +276,18 @@ final class PythonBridge {
     }
 
     // MARK: - Helpers
+
+    private static func decodeTaxonomyEvent(_ data: Data) -> TaxonomySuggestionEvent? {
+        let trimmed = data.trimmingNewlines()
+        guard !trimmed.isEmpty else { return nil }
+        if let e = try? JSONDecoder().decode(PeekEvent.self, from: trimmed), e.event == "peek" {
+            return .peek(e)
+        }
+        if let e = try? JSONDecoder().decode(TaxonomyResultEvent.self, from: trimmed), e.event == "taxonomy" {
+            return .result(e)
+        }
+        return nil
+    }
 
     private static func decodeEvent(_ data: Data) -> ScanEvent? {
         let trimmed = data.trimmingNewlines()

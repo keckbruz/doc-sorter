@@ -7,7 +7,7 @@ struct DocSorterApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1100, height: 700)
+        .defaultSize(width: 960, height: 620)
         .commands {
             CommandGroup(replacing: .newItem) {}
         }

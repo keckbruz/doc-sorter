@@ -24,10 +24,6 @@ final class SidebarViewModel: ObservableObject {
     }
 
     func countFiles(at url: URL) -> Int {
-        let exts: Set<String> = [
-            "pdf", "png", "jpg", "jpeg", "tiff", "txt",
-            "docx", "doc", "xlsx", "csv", "heic",
-        ]
         var count = 0
         guard let enumerator = FileManager.default.enumerator(
             at: url,
@@ -35,7 +31,9 @@ final class SidebarViewModel: ObservableObject {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return 0 }
         for case let fileURL as URL in enumerator {
-            if exts.contains(fileURL.pathExtension.lowercased()) { count += 1 }
+            if (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                count += 1
+            }
         }
         return count
     }

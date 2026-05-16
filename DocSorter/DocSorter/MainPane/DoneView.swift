@@ -11,34 +11,38 @@ struct DoneView: View {
     @State private var undoError: String?
 
     var body: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 16) {
-                Text("✓ Applied")
-                    .font(.custom("SF Mono", size: 20).bold())
+        VStack(spacing: 28) {
+            VStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 40))
                     .foregroundColor(Color(hex: "#3fb950"))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    resultRow(label: "Moved:", value: "\(moved)", color: .white)
-                    resultRow(label: "Skipped:", value: "\(skipped)", color: Color(hex: "#aaaaaa"))
-                    resultRow(
-                        label: "Errors:",
-                        value: "\(errors)",
-                        color: errors > 0 ? Color(hex: "#f85149") : Color(hex: "#aaaaaa")
-                    )
-                }
-                .padding(16)
-                .background(Color(hex: "#111111"))
-                .cornerRadius(6)
+                Text("Done")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.primary)
             }
+
+            VStack(spacing: 0) {
+                resultRow(icon: "arrow.right.circle", label: "Moved", value: "\(moved)", color: .primary)
+                Divider().background(Color(hex: "#1e1e1e"))
+                resultRow(icon: "forward.circle", label: "Skipped", value: "\(skipped)", color: .secondary)
+                if errors > 0 {
+                    Divider().background(Color(hex: "#1e1e1e"))
+                    resultRow(icon: "exclamationmark.circle", label: "Errors", value: "\(errors)", color: Color(hex: "#f85149"))
+                }
+            }
+            .background(Color(hex: "#111111"))
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(hex: "#222222"), lineWidth: 1))
+            .frame(width: 280)
 
             if let error = undoError {
                 Text(error)
-                    .font(.custom("SF Mono", size: 11))
+                    .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#f85149"))
                     .multilineTextAlignment(.center)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 if let path = undoPath {
                     Button(isUndoing ? "Undoing…" : "Undo") {
                         performUndo(path: path)
@@ -46,27 +50,31 @@ struct DoneView: View {
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(isUndoing)
                 }
-
-                Button("Scan again") {
-                    appState.reset()
-                }
-                .buttonStyle(PrimaryButtonStyle())
+                Button("Scan Again") { appState.reset() }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.return, modifiers: .command)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(hex: "#0d0d0d"))
     }
 
-    private func resultRow(label: String, value: String, color: Color) -> some View {
-        HStack {
+    private func resultRow(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(color)
+                .frame(width: 20)
             Text(label)
-                .font(.custom("SF Mono", size: 12))
-                .foregroundColor(Color(hex: "#555555"))
-                .frame(width: 70, alignment: .leading)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            Spacer()
             Text(value)
-                .font(.custom("SF Mono", size: 12).bold())
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(color)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
     }
 
     private func performUndo(path: String) {
