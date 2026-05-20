@@ -12,7 +12,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".heic", "
 @dataclass
 class ExtractionResult:
     text: str
-    extractor: str   # "pdf" | "docx" | "text" | "image_ocr" | "none" | "ocr_unavailable"
+    extractor: str   # "pdf" | "pdf_ocr" | "docx" | "text" | "image_ocr" | "none" | error code if dependency missing
     error: str | None = None
 
 
