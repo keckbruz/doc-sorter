@@ -28,12 +28,11 @@ extract_pdf_ocr_text(path, language, max_chars) -> tuple[str, str | None]
 
 ### 2. Routing change: `doc_cleaner/extractors/__init__.py`
 
-**Sparseness check:** after `extract_pdf_text` returns, compute:
+**Sparseness check:** `extract_pdf_text` is updated to return a 3-tuple `(text, error, page_count)` so the router has page count without re-opening the file. Then:
 
 ```python
-page_count = max(1, len(PdfReader(path).pages))  # reuse already-open reader ideally
 non_ws = len("".join(text.split()))
-sparse = non_ws < 50 * page_count
+sparse = non_ws < 50 * max(1, page_count)
 ```
 
 If sparse, call `extract_pdf_ocr_text` and return `ExtractionResult(extractor="pdf_ocr")`.
