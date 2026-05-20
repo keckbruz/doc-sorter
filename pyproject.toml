@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ocr = ["pytesseract"]
+ocr = ["pytesseract", "pymupdf>=1.23", "pillow-heif>=0.13"]
 dev = ["pytest>=8", "fpdf2>=2.7", "pytest-mock>=3"]
 
 [project.scripts]
