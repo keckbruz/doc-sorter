@@ -490,6 +490,8 @@ def suggest_taxonomy_cmd(
     allow_remote_ollama: bool = typer.Option(False, "--allow-remote-ollama"),
     max_text_chars: int = typer.Option(300, "--max-text-chars"),
     output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
+    ocr: bool = typer.Option(False, "--ocr/--no-ocr"),
+    ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
 ) -> None:
     """Suggest taxonomy additions for a folder of documents. Prints JSON to stdout."""
     import json
@@ -519,7 +521,7 @@ def suggest_taxonomy_cmd(
     files: list[tuple[str, str]] = []
     for i, meta in enumerate(all_meta):
         try:
-            result = extract_text(meta, max_chars=max_text_chars, ocr=False)
+            result = extract_text(meta, max_chars=max_text_chars, ocr=ocr, ocr_language=ocr_language)
             peek = result.text.strip()
         except Exception:
             peek = ""
