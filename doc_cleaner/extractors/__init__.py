@@ -31,7 +31,7 @@ def extract_text(
 
     if ext in PDF_EXTENSIONS:
         from doc_cleaner.extractors.pdf import extract_pdf_text
-        text, err = extract_pdf_text(meta.original_path, max_chars)
+        text, err, page_count = extract_pdf_text(meta.original_path, max_chars)
         return ExtractionResult(text=text, extractor="pdf", error=err)
 
     if ext in DOCX_EXTENSIONS:

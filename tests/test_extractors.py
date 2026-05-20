@@ -59,3 +59,21 @@ def test_extract_empty_file_returns_empty(tmp_path):
 def test_extraction_result_dataclass():
     r = ExtractionResult(text="hello", extractor="text")
     assert r.error is None
+
+
+def test_extract_pdf_text_returns_page_count(tmp_path):
+    from fpdf import FPDF
+    from doc_cleaner.extractors.pdf import extract_pdf_text
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    pdf.cell(0, 10, "Hello PDF page one")
+    pdf.add_page()
+    pdf.cell(0, 10, "Hello PDF page two")
+    p = tmp_path / "two_page.pdf"
+    pdf.output(str(p))
+
+    text, err, page_count = extract_pdf_text(p)
+    assert err is None
+    assert page_count == 2
+    assert "Hello PDF" in text
