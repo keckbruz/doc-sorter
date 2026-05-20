@@ -77,3 +77,24 @@ def test_extract_pdf_text_returns_page_count(tmp_path):
     assert err is None
     assert page_count == 2
     assert "Hello PDF" in text
+
+
+def test_heic_ocr_returns_heic_unavailable_when_pillow_heif_missing(tmp_path, mocker):
+    import sys
+    # pillow_heif absent; pytesseract mocked so we reach the HEIC check
+    mocker.patch.dict(sys.modules, {
+        "pytesseract": mocker.MagicMock(),
+        "pillow_heif": None,
+    })
+    p = tmp_path / "card.heic"
+    p.write_bytes(b"\x00fake heic bytes")
+    from doc_cleaner.extractors.image_ocr import extract_ocr_text
+    text, err = extract_ocr_text(p)
+    assert text == ""
+    assert err == "heic_unavailable"
+
+
+def test_heic_extension_in_image_extensions():
+    from doc_cleaner.extractors import IMAGE_EXTENSIONS
+    assert ".heic" in IMAGE_EXTENSIONS
+    assert ".heif" in IMAGE_EXTENSIONS

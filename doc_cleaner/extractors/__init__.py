@@ -6,7 +6,7 @@ from doc_cleaner.scanner import FileMetadata
 TEXT_EXTENSIONS = {".txt", ".md", ".rst", ".csv", ".log", ".json", ".xml", ".html", ".htm"}
 PDF_EXTENSIONS = {".pdf"}
 DOCX_EXTENSIONS = {".docx", ".doc"}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".heic", ".heif"}
 
 
 @dataclass
