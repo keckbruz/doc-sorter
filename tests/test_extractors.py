@@ -98,3 +98,55 @@ def test_heic_extension_in_image_extensions():
     from doc_cleaner.extractors import IMAGE_EXTENSIONS
     assert ".heic" in IMAGE_EXTENSIONS
     assert ".heif" in IMAGE_EXTENSIONS
+
+
+def test_extract_pdf_ocr_text_returns_text(tmp_path, mocker):
+    import sys
+    from PIL import Image as PILImage
+
+    # Build a fake fitz page that returns a tiny pixmap
+    fake_pix = mocker.MagicMock()
+    fake_pix.width = 10
+    fake_pix.height = 10
+    fake_pix.samples = b'\xff' * (10 * 10 * 3)
+
+    fake_page = mocker.MagicMock()
+    fake_page.get_pixmap.return_value = fake_pix
+
+    fake_doc = [fake_page]
+
+    fake_fitz = mocker.MagicMock()
+    fake_fitz.open.return_value = fake_doc
+    fake_tesseract = mocker.MagicMock()
+    fake_tesseract.image_to_string.return_value = "Scanned text here"
+    mocker.patch.dict(sys.modules, {"fitz": fake_fitz, "pytesseract": fake_tesseract})
+
+    p = tmp_path / "scan.pdf"
+    p.write_bytes(b"%PDF fake")
+
+    from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+    text, err = extract_pdf_ocr_text(p, language="deu+eng")
+    assert err is None
+    assert "Scanned text here" in text
+
+
+def test_extract_pdf_ocr_text_returns_pymupdf_unavailable(tmp_path, mocker):
+    import sys
+    mocker.patch.dict(sys.modules, {"fitz": None})
+    from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+    p = tmp_path / "scan.pdf"
+    p.write_bytes(b"%PDF fake")
+    text, err = extract_pdf_ocr_text(p)
+    assert text == ""
+    assert err == "pymupdf_unavailable"
+
+
+def test_extract_pdf_ocr_text_returns_ocr_unavailable_when_no_tesseract(tmp_path, mocker):
+    import sys
+    mocker.patch.dict(sys.modules, {"fitz": mocker.MagicMock(), "pytesseract": None})
+    from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+    p = tmp_path / "scan.pdf"
+    p.write_bytes(b"%PDF fake")
+    text, err = extract_pdf_ocr_text(p)
+    assert text == ""
+    assert err == "ocr_unavailable"
