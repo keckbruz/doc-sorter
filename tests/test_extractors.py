@@ -150,3 +150,28 @@ def test_extract_pdf_ocr_text_returns_ocr_unavailable_when_no_tesseract(tmp_path
     text, err = extract_pdf_ocr_text(p)
     assert text == ""
     assert err == "ocr_unavailable"
+
+
+def test_extract_pdf_ocr_text_respects_max_chars(tmp_path, mocker):
+    import sys
+
+    fake_pix = mocker.MagicMock()
+    fake_pix.width = 10
+    fake_pix.height = 10
+    fake_pix.samples = b'\xff' * (10 * 10 * 3)
+    fake_page = mocker.MagicMock()
+    fake_page.get_pixmap.return_value = fake_pix
+
+    fake_fitz = mocker.MagicMock()
+    fake_fitz.open.return_value = [fake_page]
+    fake_tesseract = mocker.MagicMock()
+    fake_tesseract.image_to_string.return_value = "A" * 200
+    mocker.patch.dict(sys.modules, {"fitz": fake_fitz, "pytesseract": fake_tesseract})
+
+    p = tmp_path / "scan.pdf"
+    p.write_bytes(b"%PDF fake")
+
+    from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+    text, err = extract_pdf_ocr_text(p, max_chars=50)
+    assert err is None
+    assert len(text) == 50

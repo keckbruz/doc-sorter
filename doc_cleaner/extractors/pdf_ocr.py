@@ -18,7 +18,7 @@ def extract_pdf_ocr_text(path: Path, language: str = "deu+eng", max_chars: int =
         parts: list[str] = []
         for page in doc:
             pix = page.get_pixmap(dpi=150)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             parts.append(pytesseract.image_to_string(img, lang=language))
         text = "\n".join(parts)
         if max_chars > 0:
