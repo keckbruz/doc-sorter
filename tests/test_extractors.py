@@ -175,3 +175,53 @@ def test_extract_pdf_ocr_text_respects_max_chars(tmp_path, mocker):
     text, err = extract_pdf_ocr_text(p, max_chars=50)
     assert err is None
     assert len(text) == 50
+
+
+def test_sparse_pdf_triggers_ocr_fallback(tmp_path, mocker):
+    """A PDF where pypdf returns < 50 non-ws chars/page should trigger pdf_ocr fallback."""
+    from fpdf import FPDF
+    pdf = FPDF()
+    pdf.add_page()  # 1 page, no text → sparse
+    p = tmp_path / "sparse.pdf"
+    pdf.output(str(p))
+
+    mock_ocr = mocker.patch(
+        "doc_cleaner.extractors.pdf_ocr.extract_pdf_ocr_text",
+        return_value=("OCR extracted text", None),
+    )
+
+    from doc_cleaner.scanner import FileMetadata
+    meta = FileMetadata(
+        original_path=p, relative_path=Path(p.name), filename=p.name,
+        extension=".pdf", file_size=p.stat().st_size, created_time=None,
+        modified_time=p.stat().st_mtime, mime_type="application/pdf", file_hash="x",
+    )
+    from doc_cleaner.extractors import extract_text
+    result = extract_text(meta)
+    assert result.extractor == "pdf_ocr"
+    assert result.text == "OCR extracted text"
+    mock_ocr.assert_called_once()
+
+
+def test_dense_pdf_skips_ocr_fallback(tmp_path, mocker):
+    """A PDF with >= 50 non-ws chars/page must NOT trigger the OCR fallback."""
+    from fpdf import FPDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    pdf.cell(0, 10, "This is a fully text-based PDF with plenty of words in it, more than fifty characters.")
+    p = tmp_path / "dense.pdf"
+    pdf.output(str(p))
+
+    mock_ocr = mocker.patch("doc_cleaner.extractors.pdf_ocr.extract_pdf_ocr_text")
+
+    from doc_cleaner.scanner import FileMetadata
+    meta = FileMetadata(
+        original_path=p, relative_path=Path(p.name), filename=p.name,
+        extension=".pdf", file_size=p.stat().st_size, created_time=None,
+        modified_time=p.stat().st_mtime, mime_type="application/pdf", file_hash="x",
+    )
+    from doc_cleaner.extractors import extract_text
+    result = extract_text(meta)
+    assert result.extractor == "pdf"
+    mock_ocr.assert_not_called()

@@ -32,6 +32,15 @@ def extract_text(
     if ext in PDF_EXTENSIONS:
         from doc_cleaner.extractors.pdf import extract_pdf_text
         text, err, page_count = extract_pdf_text(meta.original_path, max_chars)
+        if not err:
+            non_ws = len("".join(text.split()))
+            if non_ws < 50 * max(1, page_count):
+                from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+                ocr_text, ocr_err = extract_pdf_ocr_text(
+                    meta.original_path, ocr_language, max_chars
+                )
+                if ocr_text:
+                    return ExtractionResult(text=ocr_text, extractor="pdf_ocr", error=ocr_err)
         return ExtractionResult(text=text, extractor="pdf", error=err)
 
     if ext in DOCX_EXTENSIONS:
