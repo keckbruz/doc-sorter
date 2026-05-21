@@ -26,6 +26,19 @@ final class PythonBridge {
     static let shared = PythonBridge()
     private init() {}
 
+    // MARK: - Environment
+
+    private func enrichedEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let extras = "/opt/homebrew/bin:/usr/local/bin"
+        if let existing = env["PATH"] {
+            env["PATH"] = "\(extras):\(existing)"
+        } else {
+            env["PATH"] = extras
+        }
+        return env
+    }
+
     // MARK: - Python path resolution
 
     private func python3Path() throws -> String {
@@ -83,6 +96,7 @@ final class PythonBridge {
                     ]
                     let stdout = Pipe()
                     let stderr = Pipe()
+                    process.environment = enrichedEnvironment()
                     process.standardOutput = stdout
                     process.standardError = stderr
                     try process.run()
@@ -228,6 +242,7 @@ final class PythonBridge {
         ]
         let stdout = Pipe()
         let stderr = Pipe()
+        process.environment = enrichedEnvironment()
         process.standardOutput = stdout
         process.standardError = stderr
         try process.run()
@@ -265,6 +280,7 @@ final class PythonBridge {
             "--undo-manifest", undoManifestPath,
         ]
         let stderr = Pipe()
+        process.environment = enrichedEnvironment()
         process.standardError = stderr
         process.standardOutput = Pipe()
         try process.run()
