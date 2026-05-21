@@ -79,7 +79,6 @@ def scan(
     ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
     workers: int = typer.Option(1, "--workers"),
     max_text_chars: int = typer.Option(4000, "--max-text-chars"),
-    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
     taxonomy: Path | None = typer.Option(None, "--taxonomy"),
     limit: int | None = typer.Option(None, "--limit"),
     verbose: bool = typer.Option(False, "--verbose"),
@@ -97,7 +96,6 @@ def scan(
     from doc_cleaner.classifier.ollama import OllamaClient
     from doc_cleaner.classifier.prompts import build_prompt
     from doc_cleaner.classifier.schema import ClassificationResult, PlanRow
-    from doc_cleaner.cache import ResultCache
     from doc_cleaner.planner import PlanWriter, compute_target
     from doc_cleaner.taxonomy import load_taxonomy, normalize_category, REVIEW_CATEGORY
     from doc_cleaner.utils import sanitize_filename
@@ -121,9 +119,6 @@ def scan(
     plan_path = plan or Path(f"plans/plan-{ts}.csv")
     jsonl_path = jsonl or Path(f"plans/plan-{ts}.jsonl")
 
-    # Cache dir — absolute path anchored to repo root so CWD doesn't matter
-    cache_path = cache_dir or (Path(__file__).parent.parent / ".doc-sorter-cache")
-
     setup_logging(Path("/tmp/doc_sorter.log"), verbose=verbose)
 
     try:
@@ -136,9 +131,7 @@ def scan(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
-    cache = ResultCache(cache_path)
-
-    counts = {"scanned": 0, "classified": 0, "review": 0, "errors": 0, "cached": 0}
+    counts = {"scanned": 0, "classified": 0, "review": 0, "errors": 0}
     existing_targets: set[Path] = set()
 
     # effective file limit (--limit takes precedence over --max-files for usability)
@@ -164,24 +157,15 @@ def scan(
             status = "error"
 
             try:
-                # Cache check
-                cached = cache.get(meta.file_hash, model, ocr=ocr)
-                if cached:
-                    classification = cached
-                    extractor_name = "cached"
-                    counts["cached"] += 1
-                else:
-                    extraction = extract_text(
-                        meta,
-                        max_chars=max_text_chars,
-                        ocr=ocr,
-                        ocr_language=ocr_language,
-                    )
-                    extractor_name = extraction.extractor
-                    prompt = build_prompt(meta, extraction.text, tax)
-                    classification = ollama.classify(prompt)
-                    if classification.confidence >= confidence_threshold:
-                        cache.set(meta.file_hash, model, classification, ocr=ocr)
+                extraction = extract_text(
+                    meta,
+                    max_chars=max_text_chars,
+                    ocr=ocr,
+                    ocr_language=ocr_language,
+                )
+                extractor_name = extraction.extractor
+                prompt = build_prompt(meta, extraction.text, tax)
+                classification = ollama.classify(prompt)
 
                 # Force needs_review if below confidence threshold
                 if classification.confidence < confidence_threshold:
@@ -291,7 +275,6 @@ def scan(
         console.print(f"  Classified:    {counts['classified']}")
         console.print(f"  Needs review:  {counts['review']}")
         console.print(f"  Errors:        {counts['errors']}")
-        console.print(f"  Cached:        {counts['cached']}")
         console.print(f"  Plan written to: {plan_path}")
 
 
@@ -314,7 +297,6 @@ def run_pipeline(
     ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
     workers: int = typer.Option(1, "--workers"),
     max_text_chars: int = typer.Option(4000, "--max-text-chars"),
-    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
     taxonomy: Path | None = typer.Option(None, "--taxonomy"),
     limit: int | None = typer.Option(None, "--limit"),
     verbose: bool = typer.Option(False, "--verbose"),
@@ -355,7 +337,6 @@ def run_pipeline(
         ocr_language=ocr_language,
         workers=workers,
         max_text_chars=max_text_chars,
-        cache_dir=cache_dir,
         taxonomy=taxonomy,
         limit=limit,
         verbose=verbose,
