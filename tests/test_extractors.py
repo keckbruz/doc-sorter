@@ -231,3 +231,72 @@ def test_dense_pdf_skips_ocr_fallback(tmp_path, mocker):
     result = extract_text(meta)
     assert result.extractor == "pdf"
     mock_ocr.assert_not_called()
+
+
+# ── _rotation.py helper ────────────────────────────────────────────────────
+
+def test_rotation_retry_returns_early_when_text_above_threshold(mocker):
+    from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
+    fake_pt = mocker.MagicMock()
+    fake_pt.image_to_string.return_value = "A" * 25  # 25 non-ws >= threshold of 20
+    img = mocker.MagicMock()
+
+    result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
+
+    assert result == "A" * 25
+    fake_pt.image_to_osd.assert_not_called()
+
+
+def test_rotation_retry_rotates_and_returns_better_text(mocker):
+    from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
+    fake_pt = mocker.MagicMock()
+    fake_pt.image_to_string.side_effect = ["ab", "Much better text after rotation"]
+    fake_pt.image_to_osd.return_value = {"rotate": 90}
+    img = mocker.MagicMock()
+    rotated = mocker.MagicMock()
+    img.rotate.return_value = rotated
+
+    result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
+
+    img.rotate.assert_called_once_with(-90, expand=True)
+    assert result == "Much better text after rotation"
+
+
+def test_rotation_retry_returns_original_when_osd_raises(mocker):
+    from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
+    fake_pt = mocker.MagicMock()
+    fake_pt.image_to_string.return_value = "ab"
+    fake_pt.image_to_osd.side_effect = Exception("OSD failed")
+    img = mocker.MagicMock()
+
+    result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
+
+    assert result == "ab"
+    img.rotate.assert_not_called()
+
+
+def test_rotation_retry_skips_rotate_when_angle_is_zero(mocker):
+    from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
+    fake_pt = mocker.MagicMock()
+    fake_pt.image_to_string.return_value = "ab"
+    fake_pt.image_to_osd.return_value = {"rotate": 0}
+    img = mocker.MagicMock()
+
+    result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
+
+    assert result == "ab"
+    img.rotate.assert_not_called()
+
+
+def test_rotation_retry_keeps_original_when_retry_is_worse(mocker):
+    from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
+    fake_pt = mocker.MagicMock()
+    # original: 4 non-ws chars (sparse), retry: 1 non-ws char (worse)
+    fake_pt.image_to_string.side_effect = ["ab cd", "x"]
+    fake_pt.image_to_osd.return_value = {"rotate": 90}
+    img = mocker.MagicMock()
+    img.rotate.return_value = mocker.MagicMock()
+
+    result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
+
+    assert result == "ab cd"
