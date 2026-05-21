@@ -8,7 +8,7 @@ def extract_ocr_text(path: Path, language: str = "deu+eng", max_chars: int = 0) 
     """OCR via pytesseract. Soft dependency — returns graceful error if not installed."""
     try:
         import pytesseract
-        from PIL import Image
+        from PIL import Image, ImageOps
     except ImportError:
         return "", "ocr_unavailable"
 
@@ -20,10 +20,12 @@ def extract_ocr_text(path: Path, language: str = "deu+eng", max_chars: int = 0) 
             return "", "heic_unavailable"
 
     try:
+        from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
         img = Image.open(str(path))
+        img = ImageOps.exif_transpose(img)
         if img.format == "HEIF":
             img = img.convert("RGB")
-        text = pytesseract.image_to_string(img, lang=language)
+        text = ocr_with_rotation_retry(img, pytesseract, language, sparse_threshold=20)
         if max_chars > 0:
             text = text[:max_chars]
         return text, None

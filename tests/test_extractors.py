@@ -300,3 +300,23 @@ def test_rotation_retry_keeps_original_when_retry_is_worse(mocker):
     result = ocr_with_rotation_retry(img, fake_pt, "deu+eng", sparse_threshold=20)
 
     assert result == "ab cd"
+
+
+def test_image_ocr_applies_exif_transpose(tmp_path, mocker):
+    import sys
+    from PIL import Image as RealImage
+
+    img_path = tmp_path / "photo.png"
+    RealImage.new("RGB", (1, 1)).save(str(img_path))
+
+    fake_pytesseract = mocker.MagicMock()
+    # Return enough text to skip OSD retry (>= 20 non-ws chars)
+    fake_pytesseract.image_to_string.return_value = "Enough text to skip OSD retry here"
+    mocker.patch.dict(sys.modules, {"pytesseract": fake_pytesseract})
+
+    exif_spy = mocker.patch("PIL.ImageOps.exif_transpose", wraps=lambda img: img)
+
+    from doc_cleaner.extractors.image_ocr import extract_ocr_text
+    extract_ocr_text(img_path)
+
+    exif_spy.assert_called_once()
