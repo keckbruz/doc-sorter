@@ -320,3 +320,38 @@ def test_image_ocr_applies_exif_transpose(tmp_path, mocker):
     extract_ocr_text(img_path)
 
     exif_spy.assert_called_once()
+
+
+def test_extract_pdf_ocr_sparse_page_triggers_osd_retry(tmp_path, mocker):
+    import sys
+
+    fake_pix = mocker.MagicMock()
+    fake_pix.width = 10
+    fake_pix.height = 10
+    fake_pix.samples = b'\xff' * (10 * 10 * 3)
+    fake_page = mocker.MagicMock()
+    fake_page.get_pixmap.return_value = fake_pix
+
+    fake_doc = mocker.MagicMock()
+    fake_doc.__enter__ = mocker.MagicMock(return_value=[fake_page])
+    fake_doc.__exit__ = mocker.MagicMock(return_value=False)
+
+    fake_fitz = mocker.MagicMock()
+    fake_fitz.open.return_value = fake_doc
+
+    fake_tesseract = mocker.MagicMock()
+    # First image_to_string call returns sparse text; retry returns real text
+    fake_tesseract.image_to_string.side_effect = ["ab", "Real text found after rotation"]
+    fake_tesseract.image_to_osd.return_value = {"rotate": 90}
+
+    mocker.patch.dict(sys.modules, {"fitz": fake_fitz, "pytesseract": fake_tesseract})
+
+    p = tmp_path / "scan.pdf"
+    p.write_bytes(b"%PDF fake")
+
+    from doc_cleaner.extractors.pdf_ocr import extract_pdf_ocr_text
+    text, err = extract_pdf_ocr_text(p, language="deu+eng")
+
+    assert err is None
+    assert "Real text found after rotation" in text
+    fake_tesseract.image_to_osd.assert_called_once()
