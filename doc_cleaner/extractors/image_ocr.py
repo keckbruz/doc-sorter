@@ -21,6 +21,8 @@ def extract_ocr_text(path: Path, language: str = "deu+eng", max_chars: int = 0) 
 
     try:
         img = Image.open(str(path))
+        if img.format == "HEIF":
+            img = img.convert("RGB")
         text = pytesseract.image_to_string(img, lang=language)
         if max_chars > 0:
             text = text[:max_chars]
