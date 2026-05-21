@@ -78,6 +78,8 @@ final class PythonBridge {
                         "--output-root", outputPath,
                         "--model", model,
                         "--output-format", "jsonl",
+                        "--ocr",
+                        "--ocr-language", "deu+eng",
                     ]
                     let stdout = Pipe()
                     let stderr = Pipe()
@@ -143,6 +145,8 @@ final class PythonBridge {
                         "--confidence-threshold", String(confidenceThreshold),
                         "--ollama-host", ollamaHost,
                         "--output-format", "jsonl",
+                        "--ocr",
+                        "--ocr-language", "deu+eng",
                     ]
                     let stdout = Pipe()
                     let stderr = Pipe()
