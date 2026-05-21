@@ -51,7 +51,7 @@ def extract_text(
     if ext in IMAGE_EXTENSIONS and ocr:
         from doc_cleaner.extractors.image_ocr import extract_ocr_text
         text, err = extract_ocr_text(meta.original_path, ocr_language, max_chars)
-        extractor = "ocr_unavailable" if err == "ocr_unavailable" else "image_ocr"
+        extractor = err if err in {"ocr_unavailable", "heic_unavailable"} else "image_ocr"
         return ExtractionResult(text=text, extractor=extractor, error=err)
 
     return ExtractionResult(text="", extractor="none")

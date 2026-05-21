@@ -14,15 +14,15 @@ def extract_pdf_ocr_text(path: Path, language: str = "deu+eng", max_chars: int =
     except ImportError:
         return "", "ocr_unavailable"
     try:
-        doc = fitz.open(str(path))
-        parts: list[str] = []
-        for page in doc:
-            pix = page.get_pixmap(dpi=150)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            parts.append(pytesseract.image_to_string(img, lang=language))
-        text = "\n".join(parts)
-        if max_chars > 0:
-            text = text[:max_chars]
-        return text, None
+        with fitz.open(str(path)) as doc:
+            parts: list[str] = []
+            for page in doc:
+                pix = page.get_pixmap(dpi=150)
+                img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                parts.append(pytesseract.image_to_string(img, lang=language))
+            text = "\n".join(parts)
+            if max_chars > 0:
+                text = text[:max_chars]
+            return text, None
     except Exception as e:
         return "", str(e)

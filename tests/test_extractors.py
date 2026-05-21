@@ -113,7 +113,9 @@ def test_extract_pdf_ocr_text_returns_text(tmp_path, mocker):
     fake_page = mocker.MagicMock()
     fake_page.get_pixmap.return_value = fake_pix
 
-    fake_doc = [fake_page]
+    fake_doc = mocker.MagicMock()
+    fake_doc.__enter__ = mocker.MagicMock(return_value=[fake_page])
+    fake_doc.__exit__ = mocker.MagicMock(return_value=False)
 
     fake_fitz = mocker.MagicMock()
     fake_fitz.open.return_value = fake_doc
@@ -162,8 +164,12 @@ def test_extract_pdf_ocr_text_respects_max_chars(tmp_path, mocker):
     fake_page = mocker.MagicMock()
     fake_page.get_pixmap.return_value = fake_pix
 
+    fake_doc = mocker.MagicMock()
+    fake_doc.__enter__ = mocker.MagicMock(return_value=[fake_page])
+    fake_doc.__exit__ = mocker.MagicMock(return_value=False)
+
     fake_fitz = mocker.MagicMock()
-    fake_fitz.open.return_value = [fake_page]
+    fake_fitz.open.return_value = fake_doc
     fake_tesseract = mocker.MagicMock()
     fake_tesseract.image_to_string.return_value = "A" * 200
     mocker.patch.dict(sys.modules, {"fitz": fake_fitz, "pytesseract": fake_tesseract})
