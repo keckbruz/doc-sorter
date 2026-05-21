@@ -15,3 +15,7 @@ sorted/
 **/.DS_Store
 .superpowers/
 DocSorter/DocSorter.xcodeproj/
+test_input/
+test_output/
+test_docs/
+ocr-tests/

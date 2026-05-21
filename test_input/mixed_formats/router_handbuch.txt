@@ -1,8 +1,0 @@
-Benutzerhandbuch
-FritzBox 7590
-
-Kapitel 1: Einrichtung
-Verbinden Sie das Gerät mit dem DSL-Anschluss.
-
-Kapitel 2: WLAN
-Das WLAN-Passwort finden Sie auf der Unterseite des Geräts.
