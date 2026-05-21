@@ -18,9 +18,7 @@ def ocr_with_rotation_retry(
     if non_ws >= sparse_threshold:
         return text
     try:
-        osd = pytesseract.image_to_osd(
-            img, lang=language, output_type=pytesseract.Output.DICT
-        )
+        osd = pytesseract.image_to_osd(img, output_type=pytesseract.Output.DICT)
         angle = osd.get("rotate", 0)
     except Exception:
         return text
