@@ -22,8 +22,9 @@ def extract_ocr_text(path: Path, language: str = "deu+eng", max_chars: int = 0) 
     try:
         from doc_cleaner.extractors._rotation import ocr_with_rotation_retry
         img = Image.open(str(path))
+        fmt = img.format
         img = ImageOps.exif_transpose(img)
-        if img.format == "HEIF":
+        if fmt == "HEIF":
             img = img.convert("RGB")
         text = ocr_with_rotation_retry(img, pytesseract, language, sparse_threshold=20)
         if max_chars > 0:
