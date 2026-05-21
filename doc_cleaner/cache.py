@@ -11,15 +11,15 @@ class ResultCache:
         self.cache_dir = cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _key(self, file_hash: str, model: str) -> str:
-        raw = f"{file_hash}:{model}:{PROMPT_VERSION}"
+    def _key(self, file_hash: str, model: str, ocr: bool) -> str:
+        raw = f"{file_hash}:{model}:{PROMPT_VERSION}:ocr={ocr}"
         return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
     def _path(self, key: str) -> Path:
         return self.cache_dir / f"{key}.json"
 
-    def get(self, file_hash: str, model: str) -> Optional[ClassificationResult]:
-        path = self._path(self._key(file_hash, model))
+    def get(self, file_hash: str, model: str, ocr: bool = False) -> Optional[ClassificationResult]:
+        path = self._path(self._key(file_hash, model, ocr))
         if not path.exists():
             return None
         try:
@@ -27,6 +27,6 @@ class ResultCache:
         except Exception:
             return None
 
-    def set(self, file_hash: str, model: str, result: ClassificationResult) -> None:
-        path = self._path(self._key(file_hash, model))
+    def set(self, file_hash: str, model: str, result: ClassificationResult, ocr: bool = False) -> None:
+        path = self._path(self._key(file_hash, model, ocr))
         path.write_text(result.model_dump_json())

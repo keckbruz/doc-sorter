@@ -165,7 +165,7 @@ def scan(
 
             try:
                 # Cache check
-                cached = cache.get(meta.file_hash, model)
+                cached = cache.get(meta.file_hash, model, ocr=ocr)
                 if cached:
                     classification = cached
                     extractor_name = "cached"
@@ -181,7 +181,7 @@ def scan(
                     prompt = build_prompt(meta, extraction.text, tax)
                     classification = ollama.classify(prompt)
                     if classification.confidence >= confidence_threshold:
-                        cache.set(meta.file_hash, model, classification)
+                        cache.set(meta.file_hash, model, classification, ocr=ocr)
 
                 # Force needs_review if below confidence threshold
                 if classification.confidence < confidence_threshold:
