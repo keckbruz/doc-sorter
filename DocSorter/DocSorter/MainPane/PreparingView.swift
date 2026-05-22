@@ -18,6 +18,16 @@ struct PreparingView: View {
             )
             Divider().background(Color(hex: "#1e1e1e"))
             pipelineRow(
+                icon: embedIcon,
+                iconColor: embedIconColor,
+                label: "EMBEDDING",
+                detail: embedDetail,
+                progress: embedProgress,
+                barColor: Color(hex: "#e3a84d"),
+                done: appState.embedTotal > 0 && appState.embedDone >= appState.embedTotal
+            )
+            Divider().background(Color(hex: "#1e1e1e"))
+            pipelineRow(
                 icon: isSuggestingTaxonomy ? "circle.fill" : "circle",
                 iconColor: isSuggestingTaxonomy ? Color(hex: "#3a8fff") : Color(hex: "#333333"),
                 label: "PEEKING",
@@ -43,6 +53,26 @@ struct PreparingView: View {
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(hex: "#0d0d0d"))
+    }
+
+    private var embedIcon: String {
+        if appState.embedTotal == 0 { return "circle" }
+        return appState.embedDone >= appState.embedTotal ? "checkmark.circle.fill" : "circle.fill"
+    }
+
+    private var embedIconColor: Color {
+        if appState.embedTotal == 0 { return Color(hex: "#333333") }
+        return appState.embedDone >= appState.embedTotal ? Color(hex: "#3fb950") : Color(hex: "#e3a84d")
+    }
+
+    private var embedDetail: String {
+        guard appState.embedTotal > 0 else { return "—" }
+        return "\(appState.embedDone) / \(appState.embedTotal)"
+    }
+
+    private var embedProgress: Double {
+        guard appState.embedTotal > 0 else { return 0 }
+        return Double(appState.embedDone) / Double(appState.embedTotal)
     }
 
     private var peekDetail: String {

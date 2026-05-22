@@ -91,12 +91,12 @@ final class PythonBridge {
                         "--output-root", outputPath,
                         "--model", model,
                         "--output-format", "jsonl",
-                        "--ocr",
+                        "--embed-sparse",
                         "--ocr-language", "deu+eng",
                     ]
                     let stdout = Pipe()
                     let stderr = Pipe()
-                    process.environment = enrichedEnvironment()
+                    process.environment = self.enrichedEnvironment()
                     process.standardOutput = stdout
                     process.standardError = stderr
                     try process.run()
@@ -164,6 +164,7 @@ final class PythonBridge {
                     ]
                     let stdout = Pipe()
                     let stderr = Pipe()
+                    process.environment = self.enrichedEnvironment()
                     process.standardOutput = stdout
                     process.standardError = stderr
 
@@ -242,7 +243,7 @@ final class PythonBridge {
         ]
         let stdout = Pipe()
         let stderr = Pipe()
-        process.environment = enrichedEnvironment()
+        process.environment = self.enrichedEnvironment()
         process.standardOutput = stdout
         process.standardError = stderr
         try process.run()
@@ -280,7 +281,7 @@ final class PythonBridge {
             "--undo-manifest", undoManifestPath,
         ]
         let stderr = Pipe()
-        process.environment = enrichedEnvironment()
+        process.environment = self.enrichedEnvironment()
         process.standardError = stderr
         process.standardOutput = Pipe()
         try process.run()
@@ -300,6 +301,9 @@ final class PythonBridge {
     private static func decodeTaxonomyEvent(_ data: Data) -> TaxonomySuggestionEvent? {
         let trimmed = data.trimmingNewlines()
         guard !trimmed.isEmpty else { return nil }
+        if let e = try? JSONDecoder().decode(EmbedEvent.self, from: trimmed), e.event == "embed" {
+            return .embed(e)
+        }
         if let e = try? JSONDecoder().decode(PeekEvent.self, from: trimmed), e.event == "peek" {
             return .peek(e)
         }

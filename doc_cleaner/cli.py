@@ -133,6 +133,9 @@ def scan(
 
     counts = {"scanned": 0, "classified": 0, "review": 0, "errors": 0}
     existing_targets: set[Path] = set()
+    debug_log_path = plan_path.with_suffix(".debug.jsonl")
+    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+    debug_log_path.write_text("")  # reset on each scan
 
     # effective file limit (--limit takes precedence over --max-files for usability)
     effective_limit = limit if limit is not None else max_files
@@ -151,6 +154,7 @@ def scan(
 
             error_msg = ""
             extractor_name = "none"
+            extracted_text = ""
             classification: ClassificationResult | None = None
             cat = REVIEW_CATEGORY
             sub: str | None = None
@@ -164,6 +168,7 @@ def scan(
                     ocr_language=ocr_language,
                 )
                 extractor_name = extraction.extractor
+                extracted_text = extraction.text
                 prompt = build_prompt(meta, extraction.text, tax)
                 classification = ollama.classify(prompt)
 
@@ -245,6 +250,24 @@ def scan(
                 model=model,
                 error=error_msg,
             ))
+
+            non_ws = len("".join(extracted_text.split()))
+            debug_entry = {
+                "file": meta.filename,
+                "extractor": extractor_name,
+                "text_chars": non_ws,
+                "text_preview": extracted_text[:300].replace("\n", " "),
+                "confidence": classification.confidence if classification else 0,
+                "category": f"{cat}/{sub}" if sub else cat,
+                "document_type": classification.document_type if classification else "",
+                "reason": classification.reason if classification else "",
+                "error": error_msg,
+            }
+            try:
+                with open(debug_log_path, "a", encoding="utf-8") as dbf:
+                    dbf.write(json.dumps(debug_entry, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
             if output_format == "jsonl":
                 print(json.dumps({
@@ -473,12 +496,16 @@ def suggest_taxonomy_cmd(
     output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
     ocr: bool = typer.Option(False, "--ocr/--no-ocr"),
     ocr_language: str = typer.Option("deu+eng", "--ocr-language"),
+    embed_sparse: bool = typer.Option(False, "--embed-sparse/--no-embed-sparse",
+                                      help="Embed OCR into scanned PDFs before peeking"),
+    min_chars: int = typer.Option(50, "--min-chars", help="Char threshold below which a PDF is considered scanned"),
 ) -> None:
     """Suggest taxonomy additions for a folder of documents. Prints JSON to stdout."""
     import json
     from rich.console import Console
     from doc_cleaner.classifier.ollama import OllamaClient
     from doc_cleaner.extractors import extract_text
+    from doc_cleaner.extractors.pdf import extract_pdf_text
     from doc_cleaner.scanner import scan_files
     from doc_cleaner.taxonomy import (
         load_taxonomy, merge_taxonomies, read_output_taxonomy
@@ -498,11 +525,47 @@ def suggest_taxonomy_cmd(
             print(json.dumps({}))
         return
 
+    # --- Optional: embed OCR into sparse PDFs before peeking ---
+    if embed_sparse:
+        try:
+            import ocrmypdf
+            pdf_meta = [m for m in all_meta if m.extension == ".pdf"]
+            embed_total = len(pdf_meta)
+            embed_done = 0
+            for meta in pdf_meta:
+                text, _, _ = extract_pdf_text(meta.original_path, max_chars=min_chars * 2)
+                non_ws = len("".join(text.split()))
+                if non_ws >= min_chars:
+                    status = "skipped"
+                else:
+                    try:
+                        ocrmypdf.ocr(
+                            meta.original_path, meta.original_path,
+                            language=ocr_language,
+                            skip_text=True,
+                            progress_bar=False,
+                        )
+                        status = "embedded"
+                    except Exception as e:
+                        status = "error"
+                embed_done += 1
+                if output_format == "jsonl":
+                    print(json.dumps({
+                        "event": "embed",
+                        "file": meta.filename,
+                        "status": status,
+                        "done": embed_done,
+                        "total": embed_total,
+                    }), flush=True)
+        except ImportError:
+            if output_format == "jsonl":
+                print(json.dumps({"event": "embed_unavailable"}), flush=True)
+
     total = len(all_meta)
     files: list[tuple[str, str]] = []
     for i, meta in enumerate(all_meta):
         try:
-            result = extract_text(meta, max_chars=max_text_chars, ocr=ocr, ocr_language=ocr_language)
+            result = extract_text(meta, max_chars=max_text_chars, ocr=ocr, ocr_language=ocr_language, rotation_retry=False)
             peek = result.text.strip()
         except Exception:
             peek = ""
@@ -529,6 +592,104 @@ def suggest_taxonomy_cmd(
         print(json.dumps({"event": "taxonomy", "additions": additions}), flush=True)
     else:
         print(json.dumps(additions, ensure_ascii=False))
+
+
+@app.command("embed-ocr")
+def embed_ocr(
+    input: Path = typer.Option(..., "--input", "-i", help="Folder of PDFs to process"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output folder (default: overwrite in place)"),
+    language: str = typer.Option("deu+eng", "--language", "-l"),
+    workers: int = typer.Option(4, "--workers"),
+    output_format: str = typer.Option("text", "--output-format"),
+) -> None:
+    """Add searchable OCR text layer to scanned PDFs using ocrmypdf. Skips PDFs that already have text."""
+    import json
+    from rich.console import Console
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+
+    console = Console(stderr=True)
+
+    try:
+        import ocrmypdf
+    except ImportError:
+        console.print("[red]ocrmypdf not installed.[/red] Run: pip install ocrmypdf")
+        raise typer.Exit(1)
+
+    resolved_input = input.expanduser().resolve()
+    resolved_output = output.expanduser().resolve() if output else None
+    if resolved_output and resolved_output != resolved_input:
+        resolved_output.mkdir(parents=True, exist_ok=True)
+
+    pdfs = sorted(p for p in resolved_input.rglob("*") if p.suffix.lower() == ".pdf")
+    if not pdfs:
+        console.print("[yellow]No PDF files found.[/yellow]")
+        return
+
+    counts = {"done": 0, "skipped": 0, "errors": 0}
+    total = len(pdfs)
+
+    if output_format == "jsonl":
+        print(json.dumps({"event": "start", "total": total}), flush=True)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+        disable=output_format == "jsonl",
+    ) as progress:
+        task = progress.add_task("Embedding OCR…", total=total)
+
+        for pdf in pdfs:
+            dest = (resolved_output / pdf.relative_to(resolved_input)) if resolved_output else pdf
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            progress.update(task, description=f"[dim]{pdf.name}[/dim]")
+
+            try:
+                result = ocrmypdf.ocr(
+                    pdf,
+                    dest,
+                    language=language,
+                    skip_text=True,
+                    progress_bar=False,
+                    jobs=workers,
+                )
+                if result == ocrmypdf.ExitCode.already_done_ocr:
+                    counts["skipped"] += 1
+                    status = "skipped"
+                else:
+                    counts["done"] += 1
+                    status = "done"
+            except Exception as e:
+                counts["errors"] += 1
+                status = "error"
+                if output_format != "jsonl":
+                    console.print(f"\n[red]Error:[/red] {pdf.name}: {e}")
+
+            progress.advance(task)
+
+            if output_format == "jsonl":
+                print(json.dumps({
+                    "event": "progress",
+                    "file": pdf.name,
+                    "status": status,
+                    "done": counts["done"],
+                    "skipped": counts["skipped"],
+                    "errors": counts["errors"],
+                    "total": total,
+                }), flush=True)
+
+    if output_format == "jsonl":
+        print(json.dumps({"event": "done", **counts, "total": total}), flush=True)
+
+    if output_format != "jsonl":
+        console.print(f"\n[bold green]Done[/bold green]")
+        console.print(f"  Embedded:  {counts['done']}")
+        console.print(f"  Skipped:   {counts['skipped']} (already had text)")
+        console.print(f"  Errors:    {counts['errors']}")
+        if resolved_output:
+            console.print(f"  Output:    {resolved_output}")
 
 
 @app.command()

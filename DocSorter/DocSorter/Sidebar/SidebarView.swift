@@ -128,9 +128,7 @@ struct SetupView: View {
             .frame(width: 360)
         }
         .onAppear {
-            DispatchQueue.main.async {
-                NSApp.keyWindow?.makeFirstResponder(nil)
-            }
+            NSApp.keyWindow?.makeFirstResponder(nil)
         }
     }
 
@@ -208,6 +206,8 @@ struct SetupView: View {
             )
             for try await event in stream {
                 switch event {
+                case .embed(let e):
+                    await MainActor.run { appState.updateEmbed(done: e.done, total: e.total) }
                 case .peek(let e):
                     await MainActor.run { appState.updatePeek(done: e.done, total: e.total) }
                 case .result(let e):

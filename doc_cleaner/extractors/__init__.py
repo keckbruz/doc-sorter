@@ -21,6 +21,7 @@ def extract_text(
     max_chars: int = 0,
     ocr: bool = False,
     ocr_language: str = "deu+eng",
+    rotation_retry: bool = True,
 ) -> ExtractionResult:
     ext = meta.extension
 
@@ -50,7 +51,7 @@ def extract_text(
 
     if ext in IMAGE_EXTENSIONS and ocr:
         from doc_cleaner.extractors.image_ocr import extract_ocr_text
-        text, err = extract_ocr_text(meta.original_path, ocr_language, max_chars)
+        text, err = extract_ocr_text(meta.original_path, ocr_language, max_chars, rotation_retry=rotation_retry)
         extractor = err if err in {"ocr_unavailable", "heic_unavailable"} else "image_ocr"
         return ExtractionResult(text=text, extractor=extractor, error=err)
 

@@ -38,6 +38,8 @@ final class AppState: ObservableObject {
     @Published var taxonomyConfirmed: Bool = false
 
     var preScanFileCount: Int = 0
+    @Published var embedDone: Int = 0
+    @Published var embedTotal: Int = 0
     @Published var peekDone: Int = 0
     @Published var peekTotal: Int = 0
 
@@ -48,6 +50,11 @@ final class AppState: ObservableObject {
     func updateFileCount(_ count: Int) {
         preScanFileCount = count
         phase = .preparing(fileCount: count, isSuggestingTaxonomy: true)
+    }
+
+    func updateEmbed(done: Int, total: Int) {
+        embedDone = done
+        embedTotal = total
     }
 
     func updatePeek(done: Int, total: Int) {

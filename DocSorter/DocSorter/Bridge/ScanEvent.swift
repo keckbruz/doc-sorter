@@ -9,12 +9,21 @@ struct PeekEvent: Codable {
     let total: Int
 }
 
+struct EmbedEvent: Codable {
+    let event: String
+    let file: String
+    let status: String  // "embedded" | "skipped" | "error"
+    let done: Int
+    let total: Int
+}
+
 struct TaxonomyResultEvent: Codable {
     let event: String
     let additions: [String: [String]]
 }
 
 enum TaxonomySuggestionEvent {
+    case embed(EmbedEvent)
     case peek(PeekEvent)
     case result(TaxonomyResultEvent)
 }
