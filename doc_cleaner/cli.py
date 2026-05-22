@@ -432,12 +432,63 @@ def undo(
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    output_format: str = typer.Option("text", "--output-format", help="Output format: text or jsonl"),
+) -> None:
     """Check system dependencies: Ollama, Tesseract, extractors, write permissions."""
+    import json
     import sys
     import platform
     from rich.console import Console
     from rich.table import Table
+
+    checks: list[dict] = []
+
+    def add(name: str, status: str, detail: str, required: bool) -> None:
+        checks.append({"event": "check", "name": name, "status": status, "detail": detail, "required": required})
+
+    try:
+        from doc_cleaner.classifier.ollama import OllamaClient
+        client = OllamaClient()
+        if client.check_health():
+            models = client.list_models()
+            add("Ollama", "ok", f"{len(models)} model(s) available", required=True)
+        else:
+            add("Ollama", "fail", "Not reachable — run: ollama serve", required=True)
+    except Exception as e:
+        add("Ollama", "fail", f"Error: {str(e)[:80]}", required=True)
+
+    try:
+        import pypdf  # noqa: F401
+        add("pypdf", "ok", "PDF text extraction available", required=True)
+    except ImportError:
+        add("pypdf", "fail", "Not installed — run: pip install pypdf", required=True)
+
+    try:
+        import docx  # noqa: F401
+        add("python-docx", "ok", "DOCX extraction available", required=False)
+    except ImportError:
+        add("python-docx", "warn", "Not installed — run: pip install python-docx", required=False)
+
+    try:
+        import pytesseract
+        version = pytesseract.get_tesseract_version()
+        add("Tesseract", "ok", f"v{version} — image OCR available", required=False)
+    except ImportError:
+        add("Tesseract", "warn", "Not installed — run: pip install pytesseract && brew install tesseract tesseract-lang", required=False)
+    except Exception:
+        add("Tesseract", "warn", "Binary not found — run: brew install tesseract tesseract-lang", required=False)
+
+    try:
+        import ocrmypdf  # noqa: F401
+        add("ocrmypdf", "ok", "PDF OCR embedding available", required=False)
+    except ImportError:
+        add("ocrmypdf", "warn", "Not installed — run: pip install ocrmypdf", required=False)
+
+    if output_format == "jsonl":
+        for check in checks:
+            print(json.dumps(check), flush=True)
+        return
 
     console = Console()
     table = Table(title="doc-sorter doctor", show_header=True)
@@ -445,42 +496,12 @@ def doctor() -> None:
     table.add_column("Status")
     table.add_column("Detail")
 
-    py = sys.version
-    table.add_row("Python", "[green]OK[/green]", py[:20])
-
+    table.add_row("Python", "[green]OK[/green]", sys.version[:40])
     table.add_row("Platform", "[green]OK[/green]", platform.platform()[:40])
 
-    try:
-        from doc_cleaner.classifier.ollama import OllamaClient
-        client = OllamaClient()
-        if client.check_health():
-            models = client.list_models()
-            table.add_row("Ollama", "[green]OK[/green]", f"{len(models)} models")
-        else:
-            table.add_row("Ollama", "[red]FAIL[/red]", "Not reachable — run: ollama serve")
-    except Exception as e:
-        table.add_row("Ollama", "[red]FAIL[/red]", str(e)[:60])
-
-    try:
-        import pypdf  # noqa: F401
-        table.add_row("pypdf", "[green]OK[/green]", "PDF extraction available")
-    except ImportError:
-        table.add_row("pypdf", "[red]MISSING[/red]", "pip install pypdf")
-
-    try:
-        import docx  # noqa: F401
-        table.add_row("python-docx", "[green]OK[/green]", "DOCX extraction available")
-    except ImportError:
-        table.add_row("python-docx", "[red]MISSING[/red]", "pip install python-docx")
-
-    try:
-        import pytesseract
-        version = pytesseract.get_tesseract_version()
-        table.add_row("Tesseract", "[green]OK[/green]", f"v{version} — OCR available")
-    except ImportError:
-        table.add_row("Tesseract", "[yellow]OPTIONAL[/yellow]", "pip install pytesseract (then install Tesseract binary)")
-    except Exception as e:
-        table.add_row("Tesseract", "[yellow]OPTIONAL[/yellow]", f"Not found: {e}")
+    status_map = {"ok": "[green]OK[/green]", "fail": "[red]FAIL[/red]", "warn": "[yellow]OPTIONAL[/yellow]"}
+    for c in checks:
+        table.add_row(c["name"], status_map.get(c["status"], c["status"]), c["detail"])
 
     console.print(table)
 

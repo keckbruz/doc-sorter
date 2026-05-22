@@ -270,6 +270,62 @@ final class PythonBridge {
         )
     }
 
+    // MARK: - doctor
+
+    func doctor() async -> [DoctorCheck] {
+        guard let python = try? python3Path() else {
+            return [DoctorCheck(
+                name: "python3",
+                status: "fail",
+                detail: "Not found — install Python 3 (brew install python)",
+                required: true
+            )]
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: python)
+        process.arguments = ["-m", "doc_cleaner", "doctor", "--output-format", "jsonl"]
+        let stdout = Pipe()
+        process.environment = self.enrichedEnvironment()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else {
+            return [DoctorCheck(
+                name: "python3",
+                status: "fail",
+                detail: "Could not start Python process",
+                required: true
+            )]
+        }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        let lines = (String(data: data, encoding: .utf8) ?? "")
+            .components(separatedBy: "\n")
+        let parsed: [DoctorCheck] = lines.compactMap { line in
+            guard let d = line.data(using: .utf8),
+                  let obj = try? JSONDecoder().decode(RawDoctorCheck.self, from: d),
+                  obj.event == "check" else { return nil }
+            return DoctorCheck(name: obj.name, status: obj.status, detail: obj.detail, required: obj.required)
+        }
+        if parsed.isEmpty {
+            return [DoctorCheck(
+                name: "doc-sorter backend",
+                status: "fail",
+                detail: "Backend not installed — run: pip install -e /path/to/doc-sorter",
+                required: true
+            )]
+        }
+        return parsed
+    }
+
+    private struct RawDoctorCheck: Codable {
+        let event: String
+        let name: String
+        let status: String
+        let detail: String
+        let required: Bool
+    }
+
     // MARK: - undo
 
     func undo(undoManifestPath: String) async throws {

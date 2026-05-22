@@ -1,5 +1,15 @@
 import Foundation
 
+// MARK: - Doctor check
+
+struct DoctorCheck: Codable, Identifiable {
+    var id: String { name }
+    let name: String
+    let status: String   // "ok" | "fail" | "warn"
+    let detail: String
+    let required: Bool
+}
+
 // MARK: - Taxonomy streaming events
 
 struct PeekEvent: Codable {

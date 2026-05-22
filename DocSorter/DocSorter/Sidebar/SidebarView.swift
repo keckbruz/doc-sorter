@@ -49,8 +49,19 @@ struct SetupView: View {
     @EnvironmentObject var settings: Settings
     @StateObject private var viewModel = SidebarViewModel()
 
+    @State private var doctorChecks: [DoctorCheck] = []
+    @State private var doctorDone = false
+
+    private var requiredChecksFailed: Bool {
+        doctorDone && doctorChecks.contains(where: { $0.required && $0.status == "fail" })
+    }
+
     private var canScan: Bool {
-        !settings.lastInputPath.isEmpty && settings.outputURL != nil
+        !settings.lastInputPath.isEmpty && settings.outputURL != nil && !requiredChecksFailed
+    }
+
+    private var visibleChecks: [DoctorCheck] {
+        doctorChecks.filter { $0.status != "ok" }
     }
 
     var body: some View {
@@ -124,12 +135,66 @@ struct SetupView: View {
                 .disabled(!canScan)
                 .keyboardShortcut(.return, modifiers: .command)
                 .padding(.top, 4)
+
+                if !doctorDone {
+                    HStack(spacing: 6) {
+                        ProgressView().scaleEffect(0.5).frame(width: 12, height: 12)
+                        Text("Checking dependencies…")
+                            .font(.custom("SF Mono", size: 10))
+                            .foregroundColor(Color(hex: "#444444"))
+                    }
+                } else if !visibleChecks.isEmpty {
+                    doctorStrip(visibleChecks)
+                }
             }
             .frame(width: 360)
         }
         .onAppear {
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
+        .task {
+            let checks = await PythonBridge.shared.doctor()
+            doctorChecks = checks
+            doctorDone = true
+        }
+    }
+
+    // MARK: - Dependency strip
+
+    private func doctorStrip(_ checks: [DoctorCheck]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(checks) { check in
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: check.status == "fail" ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(check.status == "fail" ? Color(hex: "#f85149") : Color(hex: "#e3a84d"))
+                        .frame(width: 12)
+                        .padding(.top, 1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(check.name)
+                            .font(.custom("SF Mono", size: 10).bold())
+                            .foregroundColor(check.status == "fail" ? Color(hex: "#f85149") : Color(hex: "#e3a84d"))
+                        Text(check.detail)
+                            .font(.custom("SF Mono", size: 9))
+                            .foregroundColor(Color(hex: "#666666"))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.vertical, 5)
+                .padding(.horizontal, 10)
+                if check.id != checks.last?.id {
+                    Divider().background(Color(hex: "#1e1e1e"))
+                }
+            }
+        }
+        .background(Color(hex: "#111111"))
+        .cornerRadius(6)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+            checks.contains(where: { $0.status == "fail" })
+                ? Color(hex: "#f85149").opacity(0.3)
+                : Color(hex: "#e3a84d").opacity(0.3),
+            lineWidth: 1
+        ))
     }
 
     // MARK: - Subviews
